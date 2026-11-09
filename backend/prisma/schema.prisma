@@ -104,7 +104,7 @@ model Category {
 
 model Supplier {
   id            Int      @id @default(autoincrement())
-  name          String
+  name          String   @unique
   contactPerson String?  @map("contact_person")
   phone         String?
   email         String?
@@ -116,7 +116,6 @@ model Supplier {
   purchases Purchase[]
   batches   Batch[]
 
-  @@index([name])
   @@map("suppliers")
 }
 

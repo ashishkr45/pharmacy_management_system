@@ -51,3 +51,14 @@ export function requireRole(...allowed: Role[]): RequestHandler {
     next();
   };
 }
+
+/**
+ * Returns the authenticated principal or throws 401. Handlers use this instead
+ * of `req.auth!` so a mis-ordered middleware chain fails safely.
+ */
+export function currentAuth(req: Request): { userId: number; role: Role } {
+  if (!req.auth) {
+    throw new AppError('UNAUTHENTICATED', 'Authentication required');
+  }
+  return req.auth;
+}
