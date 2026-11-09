@@ -13,6 +13,12 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   // Origin allowed by CORS (the frontend dev server or the deployed Vercel URL).
   FRONTEND_URL: z.url('FRONTEND_URL must be a valid absolute URL, e.g. http://localhost:3000'),
+  // Pooled Neon connection string used at runtime by the PrismaPg adapter.
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required (Neon pooled connection string)'),
+  // HS256 signing secret for access tokens.
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  // JWT lifetime, e.g. "8h" (jsonwebtoken/ms format).
+  JWT_EXPIRES_IN: z.string().min(1).default('8h'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -26,7 +32,7 @@ if (!parsed.success) {
     `Invalid environment configuration:\n${issues}\n\n` +
       'Copy backend/.env.example to backend/.env and fill in the required values.',
   );
-  process.exit(1);
+  throw new Error('Invalid environment configuration');
 }
 
 export const env = parsed.data;

@@ -1,5 +1,6 @@
 import { app } from './app.js';
 import { env } from './config/env.js';
+import { disconnectPrisma } from './db/prisma.js';
 
 const server = app.listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
@@ -7,7 +8,9 @@ const server = app.listen(env.PORT, () => {
 
 function shutdown(signal: string): void {
   console.log(`${signal} received — shutting down`);
-  server.close(() => process.exit(0));
+  server.close(() => {
+    void disconnectPrisma().finally(() => process.exit(0));
+  });
 }
 
 process.on('SIGINT', () => shutdown('SIGINT'));
