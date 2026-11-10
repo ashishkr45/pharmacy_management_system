@@ -3,17 +3,9 @@ import { z } from 'zod';
 import { authenticate, currentAuth, requireRole } from '../middleware/auth.js';
 import { getValidatedQuery, validateBody, validateQuery } from '../middleware/validate.js';
 import { createMedicine, getMedicineById, listMedicines, updateMedicine, } from '../services/medicine-service.js';
-import { money } from '../utils/money.js';
 import { parseIdParam } from '../utils/parse-id.js';
 import { activeParam, listQuery } from './query-schemas.js';
-
-/** Decimal input: JSON number or numeric string, normalised to 2 dp. */
-const moneyInput = z
-  .union([
-    z.number().finite().min(0).max(9_999_999_999.99),
-    z.string().regex(/^\d{1,10}(\.\d{1,2})?$/, 'Use a non-negative amount with up to 2 decimals'),
-  ])
-  .transform((value) => money(value).toFixed(2));
+import { moneyInput } from './validation-schemas.js';
 
 const taxRateInput = moneyInput.refine((value) => Number(value) <= 100, 'Tax rate must be between 0 and 100');
 
