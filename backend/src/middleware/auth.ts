@@ -16,8 +16,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       throw new AppError('UNAUTHENTICATED', 'Authentication required');
     }
 
-    const token = header.slice('bearer '.length).trim();
-    const principal = verifyAccessToken(token);
+    const principal = verifyAccessToken(header.slice('bearer '.length).trim());
 
     const user = await prisma.user.findUnique({
       where: { id: principal.userId },
@@ -29,10 +28,14 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     }
 
     req.auth = { userId: principal.userId, role: user.role };
-    next();
   } catch (error: unknown) {
-    next(error instanceof AppError ? error : new AppError('UNAUTHENTICATED', 'Authentication required'));
+    // AppErrors keep their status; anything else (e.g. a database outage)
+    // reaches the central handler as a 500, not as a fake 401.
+    next(error);
+    return;
   }
+
+  next();
 }
 
 /** Use after `authenticate`. Role checks always happen server-side (BR-14). */

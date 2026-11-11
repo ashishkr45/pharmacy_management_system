@@ -26,3 +26,27 @@ export async function loginAs(email: string): Promise<string> {
 export function bearer(token: string): string {
   return `Bearer ${token}`;
 }
+
+export interface ApiErrorBody {
+  error: { code: string; message: string; details: Record<string, unknown> };
+}
+
+export interface Paginated<T> {
+  data: T[];
+  meta: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+/** Reads the `{ data }` envelope from a successful single-resource response. */
+export function dataOf<T>(response: { body: unknown }): T {
+  return (response.body as { data: T }).data;
+}
+
+/** Reads a `{ data, meta }` list envelope unchanged. */
+export function listOf<T>(response: { body: unknown }): Paginated<T> {
+  return response.body as Paginated<T>;
+}
+
+/** Reads the `{ error }` envelope from a failed response. */
+export function errorOf(response: { body: unknown }): ApiErrorBody['error'] {
+  return (response.body as ApiErrorBody).error;
+}

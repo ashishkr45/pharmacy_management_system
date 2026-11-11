@@ -25,7 +25,7 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   const issues = parsed.error.issues
-    .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .map((issue) => ` - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
     .join('\n');
 
   console.error(

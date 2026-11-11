@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { TRANSACTION_OPTIONS } from '../db/transaction-options.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { AppError } from '../utils/app-error.js';
 import { isExpired, startOfToday, systemClock, toCalendarDay, type Clock } from '../utils/clock.js';
@@ -255,7 +256,7 @@ export async function createPurchase(
       );
 
       return created;
-    });
+    }, TRANSACTION_OPTIONS);
   } catch (error: unknown) {
     if (isUniqueConstraintError(error)) {
       throw AppError.conflict('A batch with this medicine and batch number already exists');
