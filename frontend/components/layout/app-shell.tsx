@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Brand } from "@/components/layout/brand";
 import { RoleBadge } from "@/components/layout/role-badge";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -111,6 +112,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <RoleBadge role={user.role} className="hidden sm:inline-flex" />
+          <ThemeToggle />
           <UserMenu user={user} onLogout={handleLogout} />
         </header>
 

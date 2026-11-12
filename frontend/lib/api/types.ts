@@ -28,6 +28,44 @@ export interface PaginatedResponse<T> {
   meta: PaginationMeta;
 }
 
+export interface Category {
+  id: number;
+  name: string;
+  medicineCount: number;
+  createdAt: string;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  contactPerson: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Medicine {
+  id: number;
+  name: string;
+  genericName: string | null;
+  sku: string;
+  categoryId: number;
+  unit: string;
+  reorderLevel: number;
+  taxRate: string | null;
+  defaultSalePrice: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category: {
+    id: number;
+    name: string;
+  };
+}
+
 export const ERROR_CODES = [
   "VALIDATION_ERROR",
   "UNAUTHENTICATED",

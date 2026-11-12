@@ -6,6 +6,12 @@ export const ALL_ROLES: readonly Role[] = [
   "INVENTORY_MANAGER",
 ];
 
+/** Catalogue writes are ADMIN / INVENTORY_MANAGER only (server-enforced). */
+export const CATALOGUE_WRITE_ROLES: readonly Role[] = [
+  "ADMIN",
+  "INVENTORY_MANAGER",
+];
+
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrator",
   PHARMACIST: "Pharmacist",

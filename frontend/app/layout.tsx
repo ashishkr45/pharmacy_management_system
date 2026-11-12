@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter, Noto_Serif } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
@@ -29,6 +29,10 @@ export const metadata: Metadata = {
     "Batch-level pharmacy inventory, FEFO sales, expiry control and an immutable stock ledger.",
 };
 
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -43,13 +47,13 @@ export default function RootLayout({
       <body className="min-h-svh bg-background text-foreground antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
+          defaultTheme="system"
+          enableSystem
           disableTransitionOnChange
         >
           <AuthProvider>
             {children}
-            <Toaster position="top-right" richColors closeButton />
+            <Toaster position="bottom-right" richColors closeButton />
           </AuthProvider>
         </ThemeProvider>
       </body>
