@@ -101,8 +101,10 @@ widths. Printable views must force light/ink-friendly styles.
 F1 (foundation) is complete: API client, login, auth state, guards, responsive
 shell, shared table/state components and light/dark/system theming. F2 catalogue
 screens are implemented: categories and suppliers list/create, and medicines
-list/create/edit with search, filters and pagination. Purchases and inventory
-(F3), sales (F4), returns/alerts (F5) and reports (F6) are scaffolded
+list/create/edit with search, filters and pagination. F3 purchases and inventory
+are implemented: multi-line receiving, purchase list/detail, batch views,
+near-expiry/expired/low-stock views and the stock movement ledger. Sales (F4),
+returns/alerts (F5), reports (F6) and the remaining admin screens are scaffolded
 placeholders and are implemented in their phases.
 
 ## Next.js version

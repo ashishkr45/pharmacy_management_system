@@ -66,6 +66,134 @@ export interface Medicine {
   };
 }
 
+export interface PurchaseItem {
+  id: number;
+  medicineId: number;
+  batchId: number;
+  quantity: number;
+  costPrice: string;
+  salePrice: string;
+  expiryDate: string;
+  medicine: {
+    id: number;
+    name: string;
+    sku: string;
+  };
+  batch: {
+    id: number;
+    batchNo: string;
+    expiryDate: string;
+    quantityOnHand: number;
+  };
+}
+
+export interface Purchase {
+  id: number;
+  supplierId: number;
+  supplierInvoiceNo: string;
+  purchaseDate: string;
+  totalCost: string;
+  createdById: number;
+  createdAt: string;
+  supplier: {
+    id: number;
+    name: string;
+  };
+  createdBy: {
+    id: number;
+    name: string;
+  };
+  items: PurchaseItem[];
+}
+
+export interface Batch {
+  id: number;
+  medicineId: number;
+  batchNo: string;
+  expiryDate: string;
+  quantityOnHand: number;
+  purchasePrice: string;
+  salePrice: string;
+  supplierId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  medicine: {
+    id: number;
+    name: string;
+    sku: string;
+    unit: string;
+    reorderLevel: number;
+  };
+  supplier: {
+    id: number;
+    name: string;
+  } | null;
+  daysUntilExpiry: number;
+  expired: boolean;
+}
+
+export interface ExpiryAlertItem {
+  batchId: number;
+  batchNo: string;
+  expiryDate: string;
+  quantityOnHand: number;
+  daysUntilExpiry: number;
+  expired: boolean;
+  medicine: {
+    id: number;
+    name: string;
+    sku: string;
+    unit: string;
+    reorderLevel: number;
+  };
+}
+
+export interface LowStockItem {
+  medicineId: number;
+  name: string;
+  sku: string;
+  unit: string;
+  reorderLevel: number;
+  availableQuantity: number;
+  expiredQuantity: number;
+  shortfall: number;
+}
+
+export const STOCK_MOVEMENT_TYPES = [
+  "OPENING",
+  "PURCHASE",
+  "SALE",
+  "RETURN",
+  "ADJUSTMENT",
+] as const;
+
+export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number];
+
+export interface StockMovement {
+  id: number;
+  batchId: number;
+  type: StockMovementType;
+  qtyDelta: number;
+  referenceType: string;
+  referenceId: number | null;
+  reason: string | null;
+  createdById: number | null;
+  createdAt: string;
+  batch: {
+    id: number;
+    batchNo: string;
+    medicine: {
+      id: number;
+      name: string;
+      sku: string;
+    };
+  };
+  createdBy: {
+    id: number;
+    name: string;
+  } | null;
+}
+
 export const ERROR_CODES = [
   "VALIDATION_ERROR",
   "UNAUTHENTICATED",
