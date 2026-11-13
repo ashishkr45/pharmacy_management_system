@@ -159,6 +159,65 @@ export interface LowStockItem {
   shortfall: number;
 }
 
+export const PAYMENT_METHODS = ["CASH", "CARD", "UPI"] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const SALE_STATUSES = [
+  "COMPLETED",
+  "PARTIALLY_RETURNED",
+  "FULLY_RETURNED",
+] as const;
+
+export type SaleStatus = (typeof SALE_STATUSES)[number];
+
+export interface SaleItem {
+  id: number;
+  medicineId: number;
+  batchId: number;
+  quantity: number;
+  unitPrice: string;
+  taxRate: string;
+  taxAmount: string;
+  lineTotal: string;
+  returnedQuantity: number;
+  medicine: {
+    id: number;
+    name: string;
+    sku: string;
+    unit: string;
+  };
+  batch: {
+    id: number;
+    batchNo: string;
+    expiryDate: string;
+  };
+}
+
+export interface Sale {
+  id: number;
+  invoiceNo: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  paymentMethod: PaymentMethod;
+  subtotal: string;
+  taxTotal: string;
+  total: string;
+  status: SaleStatus;
+  createdAt: string;
+  createdById: number;
+  createdBy: {
+    id: number;
+    name: string;
+  };
+  items: SaleItem[];
+}
+
+/** The invoice endpoint returns the sale plus its pricing convention. */
+export interface InvoiceSale extends Sale {
+  taxInclusive?: boolean;
+}
+
 export const STOCK_MOVEMENT_TYPES = [
   "OPENING",
   "PURCHASE",

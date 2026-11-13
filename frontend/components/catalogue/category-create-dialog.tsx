@@ -16,14 +16,11 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
+import { invalidateApiCache } from "@/lib/api/cache";
 import { readApiFormError, type FieldErrors } from "@/lib/api/form-errors";
 import type { Category } from "@/lib/api/types";
 
-export function CategoryCreateDialog({
-  onCreated,
-}: {
-  onCreated: () => void;
-}) {
+export function CategoryCreateDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -61,9 +58,9 @@ export function CategoryCreateDialog({
         method: "POST",
         body: { name: trimmedName },
       });
+      invalidateApiCache(["/categories", "/audit-logs"]);
       toast.success("Category created");
       setOpen(false);
-      onCreated();
     } catch (error: unknown) {
       const parsed = readApiFormError(
         error,

@@ -60,17 +60,24 @@ app/
     categories/    catalogue categories: list + create
     suppliers/     catalogue suppliers: list + create
     medicines/     catalogue medicines: list + create/edit
-    ...            phase placeholders for operations and reports
+    purchases/     receive stock, purchase history and detail
+    inventory/     batch stock, expiry/low-stock views and movement ledger
+    sales/         POS, sale history/detail and role-gated checkout
+  (print)/         printable invoice route outside the app shell
+    sales/[id]/invoice/
 components/
   auth/            route guards and access-denied state
   catalogue/       catalogue dialogs and status badge
+  inventory/       batch/expiry/low-stock panels and ledger badges
+  purchases/       multi-line purchase receiving form
+  sales/           POS form and sale status badge
   layout/          sidebar, topbar, brand, theme toggle, user menu
   shared/          DataTable, search input, page header, loading/empty/error states
   ui/              shadcn/ui primitives
 lib/
-  api/             typed fetch client, shared API types and form-error mapping
+  api/             typed fetch client, path-keyed cache, shared API types and form-error mapping
   auth/            session storage and auth provider
-  hooks/           paginated-list and debounced-value hooks
+  hooks/           cached list/item hooks and debounced-value hook
   navigation.ts    role-aware navigation config
   roles.ts         role labels and helpers
 ```
@@ -96,6 +103,24 @@ instead of fixed light-only colors. Add `dark:` variants only for accents that
 have no semantic token, and verify new UI in both themes at phone and desktop
 widths. Printable views must force light/ink-friendly styles.
 
+## Data fetching and cache
+
+`useApiList` and `useApiItem` use a small in-memory, path-keyed cache
+(`lib/api/cache.ts`). A cached list or detail page renders immediately; fresh
+entries (30 s for lists, 5 minutes for dropdown reference data) skip the network
+and older entries revalidate in the background. Entries are capped at 100 and
+the cache is cleared on login, logout and `401`.
+
+After a successful write, invalidate every affected path prefix so mounted
+screens refresh and other screens do not reuse stale data:
+
+```ts
+invalidateApiCache(["/purchases", "/batches", "/alerts", "/stock-movements"]);
+```
+
+The cache is per browser tab and is not persisted. The server remains the
+authority for stock, prices and totals.
+
 ## Phase status
 
 F1 (foundation) is complete: API client, login, auth state, guards, responsive
@@ -103,9 +128,23 @@ shell, shared table/state components and light/dark/system theming. F2 catalogue
 screens are implemented: categories and suppliers list/create, and medicines
 list/create/edit with search, filters and pagination. F3 purchases and inventory
 are implemented: multi-line receiving, purchase list/detail, batch views,
-near-expiry/expired/low-stock views and the stock movement ledger. Sales (F4),
-returns/alerts (F5), reports (F6) and the remaining admin screens are scaffolded
-placeholders and are implemented in their phases.
+near-expiry/expired/low-stock views and the stock movement ledger. F4 sales are
+implemented: a POS with cached medicine search and idempotent submission, sales
+list/detail with FEFO batch lines, and a print-friendly invoice outside the app
+shell. Returns/alerts (F5), reports (F6) and the remaining admin screens are
+scaffolded placeholders and are implemented in their phases.
+
+## Sales and invoices
+
+`/sales/new` sends only medicine ids and quantities. The API performs FEFO,
+pricing, tax and invoice numbering; the UI never calculates a payable total. The
+form disables submission while pending and reuses one `Idempotency-Key` for a
+retry, so a double-click or lost response cannot create a second sale.
+
+`/sales/[id]` shows one row per batch allocation, proving which FEFO batches
+were used. `/sales/[id]/invoice` is outside the `(app)` shell and forces a
+light, ink-friendly print layout; use the browser print dialog to print or save
+as PDF. There is no server-side PDF generation.
 
 ## Next.js version
 

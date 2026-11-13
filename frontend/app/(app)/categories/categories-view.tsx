@@ -60,9 +60,7 @@ export function CategoriesView() {
       <PageHeader
         title="Categories"
         description="Group medicines into categories and find them quickly when building the catalogue."
-        actions={
-          canManage ? <CategoryCreateDialog onCreated={list.reload} /> : null
-        }
+        actions={canManage ? <CategoryCreateDialog /> : null}
       />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

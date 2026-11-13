@@ -25,7 +25,10 @@ import { buildQuery } from "@/lib/api/client";
 import type { Category, Medicine } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatMoney } from "@/lib/format";
-import { useApiList } from "@/lib/hooks/use-api-list";
+import {
+  REFERENCE_DATA_STALE_TIME,
+  useApiList,
+} from "@/lib/hooks/use-api-list";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { canAccess, CATALOGUE_WRITE_ROLES } from "@/lib/roles";
 
@@ -46,7 +49,9 @@ export function MedicinesView() {
   const search = useDebouncedValue(searchInput.trim(), 300);
   const canManage = canAccess(user?.role, CATALOGUE_WRITE_ROLES);
 
-  const categoriesList = useApiList<Category>("/categories?pageSize=100");
+  const categoriesList = useApiList<Category>("/categories?pageSize=100", {
+    staleTime: REFERENCE_DATA_STALE_TIME,
+  });
   const categories = useMemo(
     () => categoriesList.data?.data ?? [],
     [categoriesList.data],
@@ -310,7 +315,6 @@ export function MedicinesView() {
         onOpenChange={handleDialogChange}
         medicine={editing}
         categories={categories}
-        onSaved={list.reload}
       />
     </div>
   );

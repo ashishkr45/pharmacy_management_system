@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/api/client";
+import { invalidateApiCache } from "@/lib/api/cache";
 import { readApiFormError, type FieldErrors } from "@/lib/api/form-errors";
 import type { Supplier } from "@/lib/api/types";
 
@@ -37,11 +38,7 @@ function nullable(value: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function SupplierCreateDialog({
-  onCreated,
-}: {
-  onCreated: () => void;
-}) {
+export function SupplierCreateDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
@@ -99,9 +96,9 @@ export function SupplierCreateDialog({
           isActive,
         },
       });
+      invalidateApiCache(["/suppliers", "/audit-logs"]);
       toast.success("Supplier created");
       setOpen(false);
-      onCreated();
     } catch (error: unknown) {
       const parsed = readApiFormError(
         error,

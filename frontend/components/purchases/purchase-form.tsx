@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiRequest } from "@/lib/api/client";
+import { invalidateApiCache } from "@/lib/api/cache";
 import { readApiFormError, type FieldErrors } from "@/lib/api/form-errors";
 import type { Medicine, Purchase, Supplier } from "@/lib/api/types";
 import { todayDateInput } from "@/lib/date-input";
@@ -245,6 +246,15 @@ export function PurchaseForm({
         method: "POST",
         body: payload,
       });
+      invalidateApiCache([
+        "/purchases",
+        "/batches",
+        "/alerts",
+        "/stock-movements",
+        "/dashboard",
+        "/reports",
+        "/audit-logs",
+      ]);
       toast.success("Purchase received; stock and ledger updated");
       router.push(`/purchases/${purchase.id}`);
     } catch (error: unknown) {

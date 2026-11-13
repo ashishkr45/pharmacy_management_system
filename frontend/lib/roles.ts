@@ -18,6 +18,9 @@ export const PURCHASE_WRITE_ROLES: readonly Role[] = [
   "INVENTORY_MANAGER",
 ];
 
+/** Sales create invoices and are ADMIN / PHARMACIST only. */
+export const SALE_WRITE_ROLES: readonly Role[] = ["ADMIN", "PHARMACIST"];
+
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrator",
   PHARMACIST: "Pharmacist",

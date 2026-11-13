@@ -130,3 +130,15 @@
     @apply font-sans;
   }
 }
+
+/* Printable documents are always ink-friendly, even when the app is in dark mode. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}

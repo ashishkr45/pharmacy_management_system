@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiRequest } from "@/lib/api/client";
+import { clearApiCache } from "@/lib/api/cache";
 import type { LoginResult, User } from "@/lib/api/types";
 import {
   clearSession,
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         clearSession();
+        clearApiCache();
         setUser(null);
         setStatus("anonymous");
       }
@@ -81,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // session so guards send the user back to login.
   useEffect(() => {
     const handleUnauthorized = () => {
+      clearApiCache();
       setUser(null);
       setStatus("anonymous");
     };
@@ -98,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       auth: false,
     });
 
+    // Never let data cached for a previous session survive a new login.
+    clearApiCache();
     saveToken(result.token);
     setUser(result.user);
     setStatus("authenticated");
@@ -106,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearSession();
+    clearApiCache();
     setUser(null);
     setStatus("anonymous");
   }, []);

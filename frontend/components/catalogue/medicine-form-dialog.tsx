@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiRequest } from "@/lib/api/client";
+import { invalidateApiCache } from "@/lib/api/cache";
 import { readApiFormError, type FieldErrors } from "@/lib/api/form-errors";
 import type { Category, Medicine } from "@/lib/api/types";
 
@@ -121,13 +122,11 @@ export function MedicineFormDialog({
   onOpenChange,
   medicine,
   categories,
-  onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   medicine: Medicine | null;
   categories: Category[];
-  onSaved: () => void;
 }) {
   const [form, setForm] = useState<MedicineFormState>(() =>
     initialState(medicine),
@@ -185,9 +184,22 @@ export function MedicineFormDialog({
           body: payload,
         },
       );
+      // Medicine metadata appears in the catalogue, inventory, alerts,
+      // purchases and reports, so clear the wider read set.
+      invalidateApiCache([
+        "/categories",
+        "/medicines",
+        "/batches",
+        "/alerts",
+        "/stock-movements",
+        "/purchases",
+        "/sales",
+        "/dashboard",
+        "/reports",
+        "/audit-logs",
+      ]);
       toast.success(medicine ? "Medicine updated" : "Medicine created");
       onOpenChange(false);
-      onSaved();
     } catch (error: unknown) {
       const parsed = readApiFormError(
         error,

@@ -108,9 +108,7 @@ export function SuppliersView() {
       <PageHeader
         title="Suppliers"
         description="Keep the supplier list current so purchases can be recorded against the right vendor."
-        actions={
-          canManage ? <SupplierCreateDialog onCreated={list.reload} /> : null
-        }
+        actions={canManage ? <SupplierCreateDialog /> : null}
       />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

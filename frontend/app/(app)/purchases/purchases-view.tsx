@@ -18,7 +18,10 @@ import { buildQuery } from "@/lib/api/client";
 import type { Purchase, Supplier } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatDate, formatMoney } from "@/lib/format";
-import { useApiList } from "@/lib/hooks/use-api-list";
+import {
+  REFERENCE_DATA_STALE_TIME,
+  useApiList,
+} from "@/lib/hooks/use-api-list";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { canAccess, PURCHASE_WRITE_ROLES } from "@/lib/roles";
 
@@ -84,7 +87,9 @@ export function PurchasesView() {
   const search = useDebouncedValue(searchInput.trim(), 300);
   const canManage = canAccess(user?.role, PURCHASE_WRITE_ROLES);
 
-  const suppliersList = useApiList<Supplier>("/suppliers?pageSize=100");
+  const suppliersList = useApiList<Supplier>("/suppliers?pageSize=100", {
+    staleTime: REFERENCE_DATA_STALE_TIME,
+  });
   const supplierItems = useMemo(
     () => [
       { label: "All suppliers", value: "all" },

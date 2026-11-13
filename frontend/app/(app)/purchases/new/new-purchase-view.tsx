@@ -8,14 +8,19 @@ import { PageHeader } from "@/components/shared/page-header";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PurchaseForm } from "@/components/purchases/purchase-form";
 import type { Medicine, Supplier } from "@/lib/api/types";
-import { useApiList } from "@/lib/hooks/use-api-list";
+import {
+  REFERENCE_DATA_STALE_TIME,
+  useApiList,
+} from "@/lib/hooks/use-api-list";
 
 export function NewPurchaseView() {
   const suppliersList = useApiList<Supplier>(
     "/suppliers?isActive=true&pageSize=100",
+    { staleTime: REFERENCE_DATA_STALE_TIME },
   );
   const medicinesList = useApiList<Medicine>(
     "/medicines?isActive=true&pageSize=100",
+    { staleTime: REFERENCE_DATA_STALE_TIME },
   );
 
   const suppliers = useMemo(
