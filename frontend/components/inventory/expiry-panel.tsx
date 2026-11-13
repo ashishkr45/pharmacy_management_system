@@ -17,7 +17,7 @@ export function ExpiryPanel({
   onViewMovements,
 }: {
   mode: "near" | "expired";
-  onViewMovements: (batchId: number, batchNo: string) => void;
+  onViewMovements?: (batchId: number, batchNo: string) => void;
 }) {
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
@@ -72,7 +72,11 @@ export function ExpiryPanel({
       headerClassName: "text-right",
       cellClassName: "text-right tabular-nums",
     },
-    {
+  ];
+
+  if (onViewMovements) {
+    const viewMovements = onViewMovements;
+    columns.push({
       key: "actions",
       header: <span className="sr-only">Ledger</span>,
       cell: (item) => (
@@ -80,7 +84,7 @@ export function ExpiryPanel({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => onViewMovements(item.batchId, item.batchNo)}
+          onClick={() => viewMovements(item.batchId, item.batchNo)}
           aria-label={`View stock movements for batch ${item.batchNo}`}
         >
           <History aria-hidden="true" />
@@ -89,8 +93,8 @@ export function ExpiryPanel({
       ),
       headerClassName: "text-right",
       cellClassName: "text-right",
-    },
-  ];
+    });
+  }
 
   return (
     <div className="space-y-3">

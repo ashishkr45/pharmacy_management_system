@@ -86,6 +86,12 @@ export function SaleForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const isDirty =
+    lines.length > 0 ||
+    customerName.trim() !== "" ||
+    customerPhone.trim() !== "" ||
+    paymentMethod !== "CASH";
+
   const search = useDebouncedValue(searchInput.trim(), 300);
   const searchPath = `/medicines${buildQuery({
     isActive: "true",
@@ -145,6 +151,17 @@ export function SaleForm() {
     );
     setFieldErrors((previous) => clearItemErrors(previous));
     setFormError(null);
+  };
+
+  const resetForm = () => {
+    setSearchInput("");
+    setLines([]);
+    setCustomerName("");
+    setCustomerPhone("");
+    setPaymentMethod("CASH");
+    setFieldErrors({});
+    setFormError(null);
+    idempotencyKeyRef.current = null;
   };
 
   const validate = (): FieldErrors => {
@@ -229,8 +246,10 @@ export function SaleForm() {
         "/reports",
         "/audit-logs",
       ]);
+      resetForm();
       toast.success(`Sale ${sale.invoiceNo} completed`);
-      router.push(`/sales/${sale.id}`);
+      // Replace the completed basket in history so Back cannot restore it.
+      router.replace(`/sales/${sale.id}`);
     } catch (error: unknown) {
       const parsed = readApiFormError(
         error,
@@ -259,6 +278,7 @@ export function SaleForm() {
   return (
     <form
       onSubmit={handleSubmit}
+      noValidate
       className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]"
       aria-busy={pending}
     >
@@ -372,6 +392,7 @@ export function SaleForm() {
                         size="sm"
                         onClick={() => addMedicine(medicine)}
                         disabled={added || pending}
+                        className="hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
                         aria-label={
                           added
                             ? `${medicine.name} is already in the sale`
@@ -481,6 +502,7 @@ export function SaleForm() {
                       size="icon-sm"
                       onClick={() => removeLine(line.key)}
                       disabled={pending}
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
                       aria-label={`Remove ${line.name} from the sale`}
                     >
                       <Trash2 aria-hidden="true" />
@@ -497,7 +519,8 @@ export function SaleForm() {
         <div>
           <h2 className="font-heading text-sm font-medium">Customer</h2>
           <p className="text-xs/relaxed text-muted-foreground">
-            Optional, and always fictional in the demo.
+            Optional; if provided, the name appears on the invoice. Use
+            fictional data in the demo.
           </p>
         </div>
 
@@ -595,7 +618,7 @@ export function SaleForm() {
         <div className="space-y-2 border-t pt-4">
           <Button
             type="submit"
-            className="w-full"
+            className="w-full hover:shadow-md hover:brightness-110"
             disabled={pending}
             aria-busy={pending}
           >
@@ -603,9 +626,20 @@ export function SaleForm() {
           </Button>
           <Link
             href="/sales"
+            onClick={(event) => {
+              if (
+                isDirty &&
+                !window.confirm(
+                  "Discard this sale? The cart and customer details will be lost.",
+                )
+              ) {
+                event.preventDefault();
+              }
+            }}
             className={buttonVariants({
               variant: "outline",
-              className: "w-full",
+              className:
+                "w-full hover:border-primary/50 hover:bg-primary/10 hover:text-primary",
             })}
           >
             Cancel

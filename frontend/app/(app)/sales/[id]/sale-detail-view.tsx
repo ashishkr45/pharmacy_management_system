@@ -5,6 +5,8 @@ import { Printer, ReceiptText } from "lucide-react";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { ReturnDialog } from "@/components/sales/return-dialog";
+import { SaleReturns } from "@/components/sales/sale-returns";
 import { SaleStatusBadge } from "@/components/sales/sale-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,8 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Sale } from "@/lib/api/types";
+import { useAuth } from "@/lib/auth/auth-context";
 import { formatDateTime, formatDate, formatMoney } from "@/lib/format";
 import { useApiItem } from "@/lib/hooks/use-api-item";
+import { canAccess, RETURN_WRITE_ROLES } from "@/lib/roles";
 import { PAYMENT_METHOD_LABELS } from "@/lib/sales";
 
 function taxRateLabel(rate: string): string {
@@ -31,10 +35,18 @@ function taxRateLabel(rate: string): string {
 }
 
 export function SaleDetailView({ saleId }: { saleId: number }) {
+  const { user } = useAuth();
   const validId = Number.isInteger(saleId) && saleId > 0;
   const item = useApiItem<Sale>(validId ? `/sales/${saleId}` : null);
+  const canReturn = canAccess(user?.role, RETURN_WRITE_ROLES);
+  const hasReturnable =
+    item.data?.items.some(
+      (line) => line.quantity - line.returnedQuantity > 0,
+    ) ?? false;
   const totalUnits =
     item.data?.items.reduce((sum, line) => sum + line.quantity, 0) ?? 0;
+  const returnedUnits =
+    item.data?.items.reduce((sum, line) => sum + line.returnedQuantity, 0) ?? 0;
 
   if (!validId) {
     return (
@@ -61,7 +73,7 @@ export function SaleDetailView({ saleId }: { saleId: number }) {
     <div className="space-y-6">
       <PageHeader
         title={item.data ? item.data.invoiceNo : "Sale details"}
-        description="Completed invoice with the server's FEFO batch allocation, prices and tax."
+        description="Completed invoice with the server's FEFO batch allocation, prices and tax. Returns restore stock to the original batch and keep a reason."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -70,6 +82,9 @@ export function SaleDetailView({ saleId }: { saleId: number }) {
             >
               Back to sales
             </Link>
+            {canReturn && item.data && hasReturnable ? (
+              <ReturnDialog sale={item.data} />
+            ) : null}
             <Link
               href={`/sales/${saleId}/invoice`}
               className={buttonVariants()}
@@ -125,6 +140,9 @@ export function SaleDetailView({ saleId }: { saleId: number }) {
               </p>
               <SaleStatusBadge status={item.data.status} />
               <p className="text-xs text-muted-foreground">
+                {returnedUnits > 0
+                  ? `${returnedUnits} of ${totalUnits} units returned · `
+                  : ""}
                 {totalUnits} unit{totalUnits === 1 ? "" : "s"} across{" "}
                 {item.data.items.length} batch line
                 {item.data.items.length === 1 ? "" : "s"}
@@ -257,6 +275,10 @@ export function SaleDetailView({ saleId }: { saleId: number }) {
               </Link>
             </aside>
           </div>
+
+          {item.data.status !== "COMPLETED" ? (
+            <SaleReturns saleId={saleId} />
+          ) : null}
         </>
       ) : null}
     </div>

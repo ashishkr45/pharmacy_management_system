@@ -1,7 +1,8 @@
-# ER diagram (draft)
+# ER diagram
 
-Source of truth: `backend/prisma/schema.prisma`. This Mermaid version is exported
-to `docs/er-diagram.png` during phase D3.
+Source of truth: `backend/prisma/schema.prisma`. Render this Mermaid block to
+`docs/er-diagram.png` when the schema changes. The relationship labels name the
+business meaning of each foreign key.
 
 ```mermaid
 erDiagram

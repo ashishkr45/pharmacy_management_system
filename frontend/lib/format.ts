@@ -29,6 +29,15 @@ export function formatMoney(value: string | number): string {
 }
 
 export function formatDate(value: string | Date): string {
+  // Calendar dates such as `2026-11-13` must not be shifted by a timezone.
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    const calendarDate = new Date(year, month - 1, day);
+    return Number.isNaN(calendarDate.getTime())
+      ? "-"
+      : dateFormatter.format(calendarDate);
+  }
+
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? "-" : dateFormatter.format(date);
 }

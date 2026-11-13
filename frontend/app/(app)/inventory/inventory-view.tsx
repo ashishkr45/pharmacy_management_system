@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
+import { AdjustmentDialog } from "@/components/inventory/adjustment-dialog";
+import { AdjustmentsPanel } from "@/components/inventory/adjustments-panel";
 import { BatchesPanel } from "@/components/inventory/batches-panel";
 import { ExpiryPanel } from "@/components/inventory/expiry-panel";
 import { LowStockPanel } from "@/components/inventory/low-stock-panel";
@@ -10,6 +12,11 @@ import {
   MovementsPanel,
   type MovementBatchFilter,
 } from "@/components/inventory/movements-panel";
+import { useAuth } from "@/lib/auth/auth-context";
+import {
+  ADJUSTMENT_WRITE_ROLES,
+  canAccess,
+} from "@/lib/roles";
 
 type InventoryView =
   | "all"
@@ -17,7 +24,8 @@ type InventoryView =
   | "near"
   | "expired"
   | "low"
-  | "movements";
+  | "movements"
+  | "adjustments";
 
 const VIEWS: Array<{ value: InventoryView; label: string }> = [
   { value: "all", label: "All batches" },
@@ -26,6 +34,7 @@ const VIEWS: Array<{ value: InventoryView; label: string }> = [
   { value: "expired", label: "Expired" },
   { value: "low", label: "Low stock" },
   { value: "movements", label: "Movements" },
+  { value: "adjustments", label: "Adjustments" },
 ];
 
 const VIEW_DESCRIPTIONS: Record<InventoryView, string> = {
@@ -35,12 +44,16 @@ const VIEW_DESCRIPTIONS: Record<InventoryView, string> = {
   expired: "Expired stock still on hand; these batches are blocked from sales.",
   low: "Active medicines whose unexpired stock is below the reorder level.",
   movements: "The append-only ledger behind every batch quantity.",
+  adjustments:
+    "Signed stock corrections with a reason and note. Creating an adjustment is restricted to ADMIN and INVENTORY_MANAGER.",
 };
 
 export function InventoryView() {
+  const { user } = useAuth();
   const [view, setView] = useState<InventoryView>("all");
   const [movementBatch, setMovementBatch] =
     useState<MovementBatchFilter | null>(null);
+  const canAdjust = canAccess(user?.role, ADJUSTMENT_WRITE_ROLES);
 
   const selectView = (next: InventoryView) => {
     if (next === "movements") {
@@ -58,7 +71,8 @@ export function InventoryView() {
     <div className="space-y-6">
       <PageHeader
         title="Inventory"
-        description="Batch-level stock, expiry exposure and the stock movement ledger. All roles can inspect inventory; receiving and adjustments are role-restricted."
+        description="Batch-level stock, expiry exposure, adjustments and the stock movement ledger. All roles can inspect inventory; receiving and adjustments are role-restricted."
+        actions={canAdjust ? <AdjustmentDialog /> : undefined}
       />
 
       <div className="space-y-3">
@@ -102,6 +116,8 @@ export function InventoryView() {
           onClearBatch={() => setMovementBatch(null)}
         />
       ) : null}
+
+      {view === "adjustments" ? <AdjustmentsPanel /> : null}
     </div>
   );
 }

@@ -159,6 +159,12 @@ export interface LowStockItem {
   shortfall: number;
 }
 
+export interface AlertCounts {
+  lowStock: number;
+  nearExpiry: number;
+  expired: number;
+}
+
 export const PAYMENT_METHODS = ["CASH", "CARD", "UPI"] as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -218,6 +224,53 @@ export interface InvoiceSale extends Sale {
   taxInclusive?: boolean;
 }
 
+export interface SaleReturnRecord {
+  id: number;
+  saleItemId: number;
+  quantity: number;
+  reason: string;
+  createdById: number;
+  createdAt: string;
+  createdBy: {
+    id: number;
+    name: string;
+  };
+  saleItem: {
+    id: number;
+    saleId: number;
+    medicineId: number;
+    batchId: number;
+    quantity: number;
+    returnedQuantity: number;
+    unitPrice: string;
+    taxAmount: string;
+    lineTotal: string;
+    medicine: {
+      id: number;
+      name: string;
+      sku: string;
+      unit: string;
+    };
+    batch: {
+      id: number;
+      batchNo: string;
+      expiryDate: string;
+    };
+    sale: {
+      id: number;
+      invoiceNo: string;
+      status: SaleStatus;
+    };
+  };
+}
+
+export interface CreateSaleReturnResult {
+  saleId: number;
+  invoiceNo: string;
+  status: SaleStatus;
+  returns: SaleReturnRecord[];
+}
+
 export const STOCK_MOVEMENT_TYPES = [
   "OPENING",
   "PURCHASE",
@@ -251,6 +304,212 @@ export interface StockMovement {
     id: number;
     name: string;
   } | null;
+}
+
+export const ADJUSTMENT_REASONS = [
+  "DAMAGED",
+  "EXPIRED",
+  "COUNT_CORRECTION",
+  "LOST",
+  "OTHER",
+] as const;
+
+export type AdjustmentReason = (typeof ADJUSTMENT_REASONS)[number];
+
+export interface Adjustment {
+  id: number;
+  batchId: number;
+  delta: number;
+  reasonCode: AdjustmentReason;
+  note: string | null;
+  createdById: number;
+  createdAt: string;
+  batch: {
+    id: number;
+    batchNo: string;
+    expiryDate: string;
+    quantityOnHand: number;
+    medicine: {
+      id: number;
+      name: string;
+      sku: string;
+    };
+  };
+  createdBy: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface DashboardSummary {
+  date: string;
+  todaySales: {
+    count: number;
+    subtotal: string;
+    taxTotal: string;
+    total: string;
+  };
+  alerts: AlertCounts;
+  recentSales: Array<{
+    id: number;
+    invoiceNo: string;
+    customerName: string | null;
+    total: string;
+    status: SaleStatus;
+    createdAt: string;
+  }>;
+  recentMovements: Array<{
+    id: number;
+    type: StockMovementType;
+    qtyDelta: number;
+    createdAt: string;
+    batch: {
+      id: number;
+      batchNo: string;
+      medicine: { id: number; name: string; sku: string };
+    };
+  }>;
+}
+
+export interface SalesReportTotals {
+  saleCount: number;
+  subtotal: string;
+  taxTotal: string;
+  total: string;
+  returnCount: number;
+  returnedUnits: number;
+  returnedValue: string;
+}
+
+export interface SalesReportDay extends SalesReportTotals {
+  date: string;
+}
+
+export interface SalesReport {
+  from: string;
+  to: string;
+  totals: SalesReportTotals;
+  breakdown: SalesReportDay[];
+}
+
+export interface StockValuationRow {
+  batchId: number;
+  batchNo: string;
+  expiryDate: string;
+  quantityOnHand: number;
+  purchasePrice: string;
+  salePrice: string;
+  costValue: string;
+  retailValue: string;
+  expired: boolean;
+  medicine: {
+    id: number;
+    name: string;
+    sku: string;
+    unit: string;
+  };
+  supplier: {
+    id: number;
+    name: string;
+  } | null;
+}
+
+export interface StockValuation {
+  asOf: string;
+  rows: StockValuationRow[];
+  totals: {
+    batches: number;
+    units: number;
+    costValue: string;
+    retailValue: string;
+  };
+}
+
+export type ExpiryStatus = "EXPIRED" | "NEAR_EXPIRY";
+
+export interface ExpiryReportBatch {
+  batchId: number;
+  batchNo: string;
+  expiryDate: string;
+  quantityOnHand: number;
+  daysUntilExpiry: number;
+  status: ExpiryStatus;
+  purchasePrice: string;
+  costValue: string;
+}
+
+export interface ExpiryReportGroup {
+  medicineId: number;
+  name: string;
+  sku: string;
+  unit: string;
+  expiredBatches: number;
+  expiredUnits: number;
+  nearExpiryBatches: number;
+  nearExpiryUnits: number;
+  costValueAtRisk: string;
+  batches: ExpiryReportBatch[];
+}
+
+export interface ExpiryReport {
+  asOf: string;
+  windowDays: number;
+  expired: {
+    batches: number;
+    units: number;
+    costValue: string;
+  };
+  nearExpiry: {
+    batches: number;
+    units: number;
+    costValue: string;
+  };
+  groups: ExpiryReportGroup[];
+}
+
+export interface ReconciliationMismatch {
+  batchId: number;
+  batchNo: string;
+  medicineId: number;
+  medicineName: string;
+  opening: number;
+  purchases: number;
+  sales: number;
+  returns: number;
+  adjustments: number;
+  closing: number;
+  currentQuantity: number;
+  difference: number;
+}
+
+export interface ReconciliationReport {
+  from: string;
+  to: string;
+  checksCurrent: boolean;
+  checkedBatches: number;
+  mismatchCount: number;
+  mismatches: ReconciliationMismatch[];
+}
+
+export interface AuditLogEntry {
+  id: number;
+  userId: number;
+  action: string;
+  entityType: string;
+  entityId: string;
+  before: unknown;
+  after: unknown;
+  createdAt: string;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+export interface PharmacySettings {
+  defaultTaxRate: string;
+  nearExpiryDays: number;
 }
 
 export const ERROR_CODES = [

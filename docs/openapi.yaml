@@ -1,0 +1,2263 @@
+openapi: 3.0.3
+info:
+  title: Pharmacy Management API
+  version: 1.0.0
+  description: |
+    REST API for the Pharmacy Management System. All business rules live in the
+    backend: FEFO batch allocation, expiry blocking, stock-movement ledger,
+    sale idempotency, returns/adjustments and server-side RBAC.
+
+    List endpoints return `{ data, meta }`; single resources return `{ data }`.
+    Errors always use `{ error: { code, message, details? } }`.
+
+    Demo accounts (seeded, fictional):
+    - `admin@pharmacy.test` — ADMIN
+    - `pharmacist@pharmacy.test` — PHARMACIST
+    - `inventory@pharmacy.test` — INVENTORY_MANAGER
+
+    Password for all demo accounts: `Demo@1234`.
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Local development API (the `/health` endpoint is also available at `/health`).
+tags:
+  - name: Health
+  - name: Auth
+  - name: Catalogue
+  - name: Purchases
+  - name: Inventory
+  - name: Sales
+  - name: Returns
+  - name: Adjustments
+  - name: Alerts
+  - name: Dashboard
+  - name: Reports
+  - name: Admin
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: API health check
+      security: []
+      responses:
+        "200":
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                  environment:
+                    type: string
+                  uptimeSeconds:
+                    type: number
+                  timestamp:
+                    type: string
+                    format: date-time
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in and obtain a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@pharmacy.test
+                password:
+                  type: string
+                  example: Demo@1234
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/LoginResult"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Re-read the current user from the database
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /users:
+    get:
+      tags: [Admin]
+      summary: List users (ADMIN only)
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /categories:
+    get:
+      tags: [Catalogue]
+      summary: List categories
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Paginated categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Category"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Catalogue]
+      summary: Create a category (ADMIN or INVENTORY_MANAGER)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Category"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /suppliers:
+    get:
+      tags: [Catalogue]
+      summary: List suppliers
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/IsActive"
+      responses:
+        "200":
+          description: Paginated suppliers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Supplier"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Catalogue]
+      summary: Create a supplier (ADMIN or INVENTORY_MANAGER)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Supplier"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /medicines:
+    get:
+      tags: [Catalogue]
+      summary: List medicines
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/IsActive"
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Paginated medicines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Medicine"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Catalogue]
+      summary: Create a medicine (ADMIN or INVENTORY_MANAGER)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MedicineCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Medicine"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /medicines/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Catalogue]
+      summary: Get one medicine
+      responses:
+        "200":
+          description: Medicine
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Medicine"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Catalogue]
+      summary: Update or deactivate a medicine (ADMIN or INVENTORY_MANAGER)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: Any subset of medicine fields; send only the fields to change (for example isActive false).
+              allOf:
+                - $ref: "#/components/schemas/MedicineCreate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Medicine"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /purchases:
+    get:
+      tags: [Purchases]
+      summary: List purchases
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - name: supplierId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Paginated purchases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Purchase"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Purchases]
+      summary: Receive stock and create/merge batches (ADMIN or INVENTORY_MANAGER)
+      description: |
+        Not idempotent. The server recalculates the total, creates or merges each
+        batch under the unique `(medicineId, batchNo)` rule, and writes one
+        `PURCHASE` movement per line in the same transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseCreate"
+      responses:
+        "201":
+          description: Purchase received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Purchase"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /purchases/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Purchases]
+      summary: Get a purchase with its lines
+      responses:
+        "200":
+          description: Purchase
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Purchase"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /batches:
+    get:
+      tags: [Inventory]
+      summary: List batches
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - name: medicineId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: supplierId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: expired
+          in: query
+          schema:
+            type: boolean
+        - name: hasStock
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Paginated batches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Batch"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+  /batches/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Inventory]
+      summary: Get one batch
+      responses:
+        "200":
+          description: Batch
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Batch"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /stock-movements:
+    get:
+      tags: [Inventory]
+      summary: List the immutable stock ledger
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: batchId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: type
+          in: query
+          schema:
+            $ref: "#/components/schemas/StockMovementType"
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Paginated movements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/StockMovement"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+  /sales:
+    get:
+      tags: [Sales]
+      summary: List sales
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/SaleStatus"
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Paginated sales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Sale"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Sales]
+      summary: Create a FEFO sale (ADMIN or PHARMACIST)
+      description: |
+        The client sends only medicine ids and quantities. The server locks usable
+        batches in ascending id order, allocates by FEFO, reads the batch prices
+        and medicine tax rate, snapshots each allocation, writes `SALE` movements
+        and the audit row in one transaction.
+
+        The `Idempotency-Key` is required. A replay of the same payload returns
+        the original sale with HTTP 200 (and `Idempotent-Replay: true`); reusing
+        the key with a different payload returns `IDEMPOTENCY_CONFLICT`.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleCreate"
+      responses:
+        "201":
+          description: Sale created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Sale"
+        "200":
+          description: Idempotent replay; the original sale is returned
+          headers:
+            Idempotent-Replay:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Sale"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Insufficient stock, expired stock or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sales/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Sales]
+      summary: Get a sale with its FEFO batch lines
+      responses:
+        "200":
+          description: Sale
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Sale"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sales/{id}/invoice:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Sales]
+      summary: Get the printable invoice snapshot
+      description: Returns the sale snapshot plus a `taxInclusive` flag, indicating tax is added on top of line subtotals.
+      responses:
+        "200":
+          description: Invoice data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/Sale"
+                      - type: object
+                        properties:
+                          taxInclusive:
+                            type: boolean
+                            example: false
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sales/{id}/returns:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Returns]
+      summary: Return items from a sale (ADMIN or PHARMACIST)
+      description: |
+        Locks the sale, requested sale items and affected batches. Each line caps
+        at `quantity - returnedQuantity`; stock returns to the original batch.
+        The sale status is recomputed from all lines.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, items]
+              properties:
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 500
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [saleItemId, quantity]
+                    properties:
+                      saleItemId:
+                        type: integer
+                        minimum: 1
+                      quantity:
+                        type: integer
+                        minimum: 1
+      responses:
+        "201":
+          description: Return recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CreateReturnResult"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /returns:
+    get:
+      tags: [Returns]
+      summary: List return history
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: saleId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: saleItemId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Paginated returns
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Return"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+  /adjustments:
+    get:
+      tags: [Adjustments]
+      summary: List stock adjustments
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: batchId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: reasonCode
+          in: query
+          schema:
+            $ref: "#/components/schemas/AdjustmentReason"
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Paginated adjustments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Adjustment"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Adjustments]
+      summary: Adjust batch stock (ADMIN or INVENTORY_MANAGER)
+      description: |
+        Creates the adjustment and its signed `ADJUSTMENT` movement in one
+        transaction. `delta` must be non-zero; a result below zero is rejected.
+        `OTHER` requires a note. Not idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batchId, delta, reasonCode]
+              properties:
+                batchId:
+                  type: integer
+                  minimum: 1
+                delta:
+                  type: integer
+                  description: Non-zero signed change; positive adds stock, negative removes it.
+                reasonCode:
+                  $ref: "#/components/schemas/AdjustmentReason"
+                note:
+                  type: string
+                  maxLength: 500
+      responses:
+        "201":
+          description: Adjustment recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Adjustment"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /alerts/low-stock:
+    get:
+      tags: [Alerts]
+      summary: Medicines below reorder level using unexpired stock
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Paginated low-stock medicines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LowStockItem"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+  /alerts/near-expiry:
+    get:
+      tags: [Alerts]
+      summary: Unexpired batches inside the configured near-expiry window
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Paginated near-expiry batches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExpiryAlertItem"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+  /alerts/expired:
+    get:
+      tags: [Alerts]
+      summary: Expired batches that still hold stock
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+      responses:
+        "200":
+          description: Paginated expired batches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExpiryAlertItem"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Today's sales, alert counts and recent activity
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DashboardSummary"
+  /reports/sales:
+    get:
+      tags: [Reports]
+      summary: Gross sales and returns by UTC day (ADMIN or PHARMACIST)
+      parameters:
+        - $ref: "#/components/parameters/FromRequired"
+        - $ref: "#/components/parameters/ToRequired"
+      responses:
+        "200":
+          description: Sales report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SalesReport"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/stock-valuation:
+    get:
+      tags: [Reports]
+      summary: Current batch valuation (ADMIN or INVENTORY_MANAGER)
+      parameters:
+        - name: includeZero
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Stock valuation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/StockValuation"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/expiry:
+    get:
+      tags: [Reports]
+      summary: Expired and near-expiry exposure (ADMIN or INVENTORY_MANAGER)
+      parameters:
+        - name: days
+          in: query
+          description: Optional override for the settings near-expiry window.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 3650
+      responses:
+        "200":
+          description: Expiry report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ExpiryReport"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/reconciliation:
+    get:
+      tags: [Reports]
+      summary: Rebuild batch balances from the ledger (ADMIN or INVENTORY_MANAGER)
+      description: |
+        Opening = movements before `from` plus OPENING rows inside the range.
+        A live comparison with `quantity_on_hand` is only made when `to` is today
+        or later; otherwise `checksCurrent` is false and no mismatches are
+        claimed.
+      parameters:
+        - $ref: "#/components/parameters/FromRequired"
+        - $ref: "#/components/parameters/ToRequired"
+      responses:
+        "200":
+          description: Reconciliation report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ReconciliationReport"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /audit-logs:
+    get:
+      tags: [Admin]
+      summary: Browse the audit trail (ADMIN only)
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Search"
+        - name: action
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - name: entityType
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - name: entityId
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: userId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Paginated audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLogEntry"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /settings:
+    get:
+      tags: [Admin]
+      summary: Read typed settings (ADMIN only)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Settings"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Admin]
+      summary: Update one or both settings and audit each changed key (ADMIN only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                defaultTaxRate:
+                  type: string
+                  description: Decimal string between 0 and 100 with up to 2 decimals.
+                  example: "5.00"
+                nearExpiryDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 3650
+      responses:
+        "200":
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Settings"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    IsActive:
+      name: isActive
+      in: query
+      schema:
+        type: boolean
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    FromRequired:
+      name: from
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    ToRequired:
+      name: to
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Request validation failed
+              details:
+                issues: []
+    Unauthenticated:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: UNAUTHENTICATED
+              message: Authentication required
+    Forbidden:
+      description: The authenticated role is not allowed to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: FORBIDDEN
+              message: You do not have permission to perform this action
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: NOT_FOUND
+              message: Resource not found
+    Conflict:
+      description: Duplicate, invalid state or stock conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Too many failed login attempts
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Too many login attempts; try again later
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - UNAUTHENTICATED
+                - FORBIDDEN
+                - NOT_FOUND
+                - CONFLICT
+                - INSUFFICIENT_STOCK
+                - BATCH_EXPIRED
+                - INVALID_STATE
+                - IDEMPOTENCY_CONFLICT
+                - RATE_LIMITED
+                - INTERNAL_ERROR
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+    Role:
+      type: string
+      enum: [ADMIN, PHARMACIST, INVENTORY_MANAGER]
+    User:
+      type: object
+      required: [id, name, email, role, isActive]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/Role"
+        isActive:
+          type: boolean
+    LoginResult:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        medicineCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contactPerson:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SupplierCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        contactPerson:
+          type: string
+          nullable: true
+          maxLength: 120
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+          maxLength: 300
+        isActive:
+          type: boolean
+    Medicine:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        genericName:
+          type: string
+          nullable: true
+        sku:
+          type: string
+        categoryId:
+          type: integer
+        unit:
+          type: string
+        reorderLevel:
+          type: integer
+        taxRate:
+          type: string
+          nullable: true
+          description: Decimal string; null falls back to settings.defaultTaxRate.
+        defaultSalePrice:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        category:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+    MedicineCreate:
+      type: object
+      required: [name, sku, categoryId, unit]
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        genericName:
+          type: string
+          nullable: true
+          maxLength: 150
+        sku:
+          type: string
+          maxLength: 50
+          pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          description: Normalised to upper case by the server.
+        categoryId:
+          type: integer
+          minimum: 1
+        unit:
+          type: string
+          maxLength: 30
+        reorderLevel:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        taxRate:
+          type: string
+          nullable: true
+          description: Decimal string between 0 and 100.
+        defaultSalePrice:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+    PurchaseItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        medicineId:
+          type: integer
+        batchId:
+          type: integer
+        quantity:
+          type: integer
+        costPrice:
+          type: string
+        salePrice:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+        medicine:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            sku:
+              type: string
+        batch:
+          type: object
+          properties:
+            id:
+              type: integer
+            batchNo:
+              type: string
+            expiryDate:
+              type: string
+              format: date
+            quantityOnHand:
+              type: integer
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplierId:
+          type: integer
+        supplierInvoiceNo:
+          type: string
+        purchaseDate:
+          type: string
+          format: date-time
+        totalCost:
+          type: string
+        createdById:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        supplier:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        createdBy:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseItem"
+    PurchaseCreate:
+      type: object
+      required: [supplierId, supplierInvoiceNo, items]
+      properties:
+        supplierId:
+          type: integer
+          minimum: 1
+        supplierInvoiceNo:
+          type: string
+          maxLength: 80
+        purchaseDate:
+          type: string
+          format: date
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [medicineId, batchNo, quantity, costPrice, salePrice, expiryDate]
+            properties:
+              medicineId:
+                type: integer
+                minimum: 1
+              batchNo:
+                type: string
+                maxLength: 50
+              quantity:
+                type: integer
+                minimum: 1
+              costPrice:
+                type: string
+              salePrice:
+                type: string
+              expiryDate:
+                type: string
+                format: date
+    Batch:
+      type: object
+      properties:
+        id:
+          type: integer
+        medicineId:
+          type: integer
+        batchNo:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+        quantityOnHand:
+          type: integer
+        purchasePrice:
+          type: string
+        salePrice:
+          type: string
+        supplierId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        medicine:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            sku:
+              type: string
+            unit:
+              type: string
+            reorderLevel:
+              type: integer
+        supplier:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        daysUntilExpiry:
+          type: integer
+        expired:
+          type: boolean
+    StockMovementType:
+      type: string
+      enum: [OPENING, PURCHASE, SALE, RETURN, ADJUSTMENT]
+    StockMovement:
+      type: object
+      properties:
+        id:
+          type: integer
+        batchId:
+          type: integer
+        type:
+          $ref: "#/components/schemas/StockMovementType"
+        qtyDelta:
+          type: integer
+        referenceType:
+          type: string
+        referenceId:
+          type: integer
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        createdById:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        batch:
+          type: object
+          properties:
+            id:
+              type: integer
+            batchNo:
+              type: string
+            medicine:
+              type: object
+              properties:
+                id:
+                  type: integer
+                name:
+                  type: string
+                sku:
+                  type: string
+        createdBy:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+    SaleStatus:
+      type: string
+      enum: [COMPLETED, PARTIALLY_RETURNED, FULLY_RETURNED]
+    SaleItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        medicineId:
+          type: integer
+        batchId:
+          type: integer
+        quantity:
+          type: integer
+        unitPrice:
+          type: string
+        taxRate:
+          type: string
+        taxAmount:
+          type: string
+        lineTotal:
+          type: string
+          description: Tax-inclusive line total.
+        returnedQuantity:
+          type: integer
+        medicine:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            sku:
+              type: string
+            unit:
+              type: string
+        batch:
+          type: object
+          properties:
+            id:
+              type: integer
+            batchNo:
+              type: string
+            expiryDate:
+              type: string
+              format: date
+    Sale:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoiceNo:
+          type: string
+        customerName:
+          type: string
+          nullable: true
+        customerPhone:
+          type: string
+          nullable: true
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD, UPI]
+        subtotal:
+          type: string
+        taxTotal:
+          type: string
+        total:
+          type: string
+        status:
+          $ref: "#/components/schemas/SaleStatus"
+        createdAt:
+          type: string
+          format: date-time
+        createdById:
+          type: integer
+        createdBy:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItem"
+    SaleCreate:
+      type: object
+      required: [paymentMethod, items]
+      properties:
+        customerName:
+          type: string
+          nullable: true
+          maxLength: 120
+        customerPhone:
+          type: string
+          nullable: true
+          pattern: "^[0-9+()\\- ]{5,20}$"
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD, UPI]
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: One line per medicine; duplicate medicine ids are rejected.
+          items:
+            type: object
+            required: [medicineId, quantity]
+            properties:
+              medicineId:
+                type: integer
+                minimum: 1
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 1000000
+    Return:
+      type: object
+      properties:
+        id:
+          type: integer
+        saleItemId:
+          type: integer
+        quantity:
+          type: integer
+        reason:
+          type: string
+        createdById:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        saleItem:
+          type: object
+          properties:
+            id:
+              type: integer
+            saleId:
+              type: integer
+            medicineId:
+              type: integer
+            batchId:
+              type: integer
+            quantity:
+              type: integer
+            returnedQuantity:
+              type: integer
+            medicine:
+              type: object
+              properties:
+                id:
+                  type: integer
+                name:
+                  type: string
+                sku:
+                  type: string
+                unit:
+                  type: string
+            batch:
+              type: object
+              properties:
+                id:
+                  type: integer
+                batchNo:
+                  type: string
+                expiryDate:
+                  type: string
+                  format: date
+            sale:
+              type: object
+              properties:
+                id:
+                  type: integer
+                invoiceNo:
+                  type: string
+                status:
+                  $ref: "#/components/schemas/SaleStatus"
+    CreateReturnResult:
+      type: object
+      properties:
+        saleId:
+          type: integer
+        invoiceNo:
+          type: string
+        status:
+          $ref: "#/components/schemas/SaleStatus"
+        returns:
+          type: array
+          items:
+            $ref: "#/components/schemas/Return"
+    AdjustmentReason:
+      type: string
+      enum: [DAMAGED, EXPIRED, COUNT_CORRECTION, LOST, OTHER]
+    Adjustment:
+      type: object
+      properties:
+        id:
+          type: integer
+        batchId:
+          type: integer
+        delta:
+          type: integer
+        reasonCode:
+          $ref: "#/components/schemas/AdjustmentReason"
+        note:
+          type: string
+          nullable: true
+        createdById:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        batch:
+          type: object
+          properties:
+            id:
+              type: integer
+            batchNo:
+              type: string
+            expiryDate:
+              type: string
+              format: date
+            quantityOnHand:
+              type: integer
+            medicine:
+              type: object
+              properties:
+                id:
+                  type: integer
+                name:
+                  type: string
+                sku:
+                  type: string
+        createdBy:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+    ExpiryAlertItem:
+      type: object
+      properties:
+        batchId:
+          type: integer
+        batchNo:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+        quantityOnHand:
+          type: integer
+        daysUntilExpiry:
+          type: integer
+        expired:
+          type: boolean
+        medicine:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            sku:
+              type: string
+            unit:
+              type: string
+            reorderLevel:
+              type: integer
+    LowStockItem:
+      type: object
+      properties:
+        medicineId:
+          type: integer
+        name:
+          type: string
+        sku:
+          type: string
+        unit:
+          type: string
+        reorderLevel:
+          type: integer
+        availableQuantity:
+          type: integer
+        expiredQuantity:
+          type: integer
+        shortfall:
+          type: integer
+    DashboardSummary:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        todaySales:
+          type: object
+          properties:
+            count:
+              type: integer
+            subtotal:
+              type: string
+            taxTotal:
+              type: string
+            total:
+              type: string
+        alerts:
+          type: object
+          properties:
+            lowStock:
+              type: integer
+            nearExpiry:
+              type: integer
+            expired:
+              type: integer
+        recentSales:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              invoiceNo:
+                type: string
+              customerName:
+                type: string
+                nullable: true
+              total:
+                type: string
+              status:
+                $ref: "#/components/schemas/SaleStatus"
+              createdAt:
+                type: string
+                format: date-time
+        recentMovements:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              type:
+                $ref: "#/components/schemas/StockMovementType"
+              qtyDelta:
+                type: integer
+              createdAt:
+                type: string
+                format: date-time
+              batch:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  batchNo:
+                    type: string
+                  medicine:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+                      sku:
+                        type: string
+    SalesReportTotals:
+      type: object
+      properties:
+        saleCount:
+          type: integer
+        subtotal:
+          type: string
+        taxTotal:
+          type: string
+        total:
+          type: string
+        returnCount:
+          type: integer
+        returnedUnits:
+          type: integer
+        returnedValue:
+          type: string
+    SalesReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totals:
+          $ref: "#/components/schemas/SalesReportTotals"
+        breakdown:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/SalesReportTotals"
+              - type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+    StockValuation:
+      type: object
+      properties:
+        asOf:
+          type: string
+          format: date
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              batchId:
+                type: integer
+              batchNo:
+                type: string
+              expiryDate:
+                type: string
+                format: date
+              quantityOnHand:
+                type: integer
+              purchasePrice:
+                type: string
+              salePrice:
+                type: string
+              costValue:
+                type: string
+              retailValue:
+                type: string
+              expired:
+                type: boolean
+              medicine:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  sku:
+                    type: string
+                  unit:
+                    type: string
+              supplier:
+                type: object
+                nullable: true
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+        totals:
+          type: object
+          properties:
+            batches:
+              type: integer
+            units:
+              type: integer
+            costValue:
+              type: string
+            retailValue:
+              type: string
+    ExpiryReport:
+      type: object
+      properties:
+        asOf:
+          type: string
+          format: date
+        windowDays:
+          type: integer
+        expired:
+          type: object
+          properties:
+            batches:
+              type: integer
+            units:
+              type: integer
+            costValue:
+              type: string
+        nearExpiry:
+          type: object
+          properties:
+            batches:
+              type: integer
+            units:
+              type: integer
+            costValue:
+              type: string
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              medicineId:
+                type: integer
+              name:
+                type: string
+              sku:
+                type: string
+              unit:
+                type: string
+              expiredBatches:
+                type: integer
+              expiredUnits:
+                type: integer
+              nearExpiryBatches:
+                type: integer
+              nearExpiryUnits:
+                type: integer
+              costValueAtRisk:
+                type: string
+              batches:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    batchId:
+                      type: integer
+                    batchNo:
+                      type: string
+                    expiryDate:
+                      type: string
+                      format: date
+                    quantityOnHand:
+                      type: integer
+                    daysUntilExpiry:
+                      type: integer
+                    status:
+                      type: string
+                      enum: [EXPIRED, NEAR_EXPIRY]
+                    purchasePrice:
+                      type: string
+                    costValue:
+                      type: string
+    ReconciliationReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        checksCurrent:
+          type: boolean
+        checkedBatches:
+          type: integer
+        mismatchCount:
+          type: integer
+        mismatches:
+          type: array
+          items:
+            type: object
+            properties:
+              batchId:
+                type: integer
+              batchNo:
+                type: string
+              medicineId:
+                type: integer
+              medicineName:
+                type: string
+              opening:
+                type: integer
+              purchases:
+                type: integer
+              sales:
+                type: integer
+              returns:
+                type: integer
+              adjustments:
+                type: integer
+              closing:
+                type: integer
+              currentQuantity:
+                type: integer
+              difference:
+                type: integer
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+        before:
+          type: object
+          nullable: true
+          additionalProperties: true
+        after:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            email:
+              type: string
+    Settings:
+      type: object
+      properties:
+        defaultTaxRate:
+          type: string
+          example: "5.00"
+        nearExpiryDays:
+          type: integer
+          example: 60

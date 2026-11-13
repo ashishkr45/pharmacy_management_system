@@ -61,25 +61,31 @@ app/
     suppliers/     catalogue suppliers: list + create
     medicines/     catalogue medicines: list + create/edit
     purchases/     receive stock, purchase history and detail
-    inventory/     batch stock, expiry/low-stock views and movement ledger
-    sales/         POS, sale history/detail and role-gated checkout
+    inventory/     batch stock, expiry/low-stock views, adjustments and movement ledger
+    sales/         POS, sale history/detail, returns and role-gated checkout
+    alerts/        low-stock, near-expiry and expired alert workspace
+    reports/       role-filtered sales, valuation, expiry and reconciliation reports
+    audit-logs/    admin-only audit browser with filters and snapshots
+    settings/      admin-only tax and near-expiry defaults
   (print)/         printable invoice route outside the app shell
     sales/[id]/invoice/
 components/
   auth/            route guards and access-denied state
   catalogue/       catalogue dialogs and status badge
-  inventory/       batch/expiry/low-stock panels and ledger badges
+  inventory/       batch/expiry/low-stock panels, adjustment dialog/history and ledger badges
   purchases/       multi-line purchase receiving form
-  sales/           POS form and sale status badge
+  sales/           POS form, return dialog/history and sale status badge
+  reports/         date filter, stats and the four report panels
   layout/          sidebar, topbar, brand, theme toggle, user menu
-  shared/          DataTable, search input, page header, loading/empty/error states
+  shared/          DataTable, stat card, search input, page header and states
   ui/              shadcn/ui primitives
 lib/
   api/             typed fetch client, path-keyed cache, shared API types and form-error mapping
   auth/            session storage and auth provider
   hooks/           cached list/item hooks and debounced-value hook
   navigation.ts    role-aware navigation config
-  roles.ts         role labels and helpers
+  reports.ts       default report range and date-range validation
+  roles.ts         role labels, helpers and report role groups
 ```
 
 ## Auth and permissions
@@ -131,20 +137,66 @@ are implemented: multi-line receiving, purchase list/detail, batch views,
 near-expiry/expired/low-stock views and the stock movement ledger. F4 sales are
 implemented: a POS with cached medicine search and idempotent submission, sales
 list/detail with FEFO batch lines, and a print-friendly invoice outside the app
-shell. Returns/alerts (F5), reports (F6) and the remaining admin screens are
-scaffolded placeholders and are implemented in their phases.
+shell. F5 returns, adjustments and alerts are implemented: a return dialog with a
+required reason and return history on the sale detail, a batch-search adjustment
+form with signed quantities and adjustment history, and an alerts workspace that
+reuses the server-side alert endpoints. F6 is implemented: the dashboard leads
+with sales or stock depending on role; reports are filtered by role (sales for
+counter roles, valuation/expiry/reconciliation for stock roles); and the admin
+audit log and settings screens are live. User management remains out of scope
+under the 7-day cut order.
 
 ## Sales and invoices
 
-`/sales/new` sends only medicine ids and quantities. The API performs FEFO,
-pricing, tax and invoice numbering; the UI never calculates a payable total. The
-form disables submission while pending and reuses one `Idempotency-Key` for a
-retry, so a double-click or lost response cannot create a second sale.
+`/sales/new` keeps customer name and phone optional, matching PRD FR-4; if a
+name is provided it appears on the invoice. It sends only medicine ids and
+quantities. The API performs FEFO, pricing, tax and invoice numbering; the UI
+never calculates a payable total. The form disables submission while pending
+and reuses one `Idempotency-Key` for a retry, so a double-click or lost response
+cannot create a second sale. After a successful sale the form clears the basket
+and replaces the history entry with the sale detail, so starting the next sale
+begins empty.
 
 `/sales/[id]` shows one row per batch allocation, proving which FEFO batches
 were used. `/sales/[id]/invoice` is outside the `(app)` shell and forces a
 light, ink-friendly print layout; use the browser print dialog to print or save
 as PDF. There is no server-side PDF generation.
+
+## Returns, adjustments and alerts
+
+On a sale detail, ADMIN and PHARMACIST users can open **Return items**. The
+dialog sends one return request with a required reason and the chosen quantities;
+the API locks the sale and sale items, checks each remaining quantity, returns
+stock to the original batch and updates the sale status. Return history and
+reasons appear below the invoice lines. A fully returned line cannot be selected
+again.
+
+`/inventory` has an **Adjustments** view and an **Adjust stock** action for ADMIN
+and INVENTORY_MANAGER. The adjustment dialog searches batches by medicine or
+batch number, then asks for a signed whole-number change and a reason. A note is
+required for `OTHER`. The API writes the adjustment and its `ADJUSTMENT` ledger
+movement in one transaction and rejects a result below zero; the preview in the
+dialog is not authoritative.
+
+`/alerts` shows the three server-calculated alert views (low stock, near expiry
+and expired) with counts from the dashboard summary. Search and pagination are
+server-side; the alert counts and lists use the same service rules.
+
+## Reports, audit log and settings
+
+`/reports` is role-filtered. ADMIN sees all four reports; PHARMACIST sees the
+sales report; INVENTORY_MANAGER sees stock valuation, expiry and reconciliation.
+The sales report shows gross totals plus returns for a date range; valuation
+shows cost and retail value per batch; expiry groups stock by medicine and
+window; reconciliation rebuilds each batch from the ledger and displays a clear
+zero-mismatch success state. Dates use the server's UTC calendar, and the API
+recalculates every figure.
+
+`/audit-logs` is ADMIN-only. It supports search, action/entity filters, date
+filters, server pagination and expandable before/after JSON snapshots.
+`/settings` is ADMIN-only and edits `defaultTaxRate` and `nearExpiryDays`; each
+change is validated, saved through `PUT /settings`, invalidates affected cache
+prefixes and is written to the audit trail.
 
 ## Next.js version
 

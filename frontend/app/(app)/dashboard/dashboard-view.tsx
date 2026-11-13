@@ -1,16 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   Clock,
   Package,
+  Plus,
   RefreshCw,
   TriangleAlert,
   Wallet,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { StatCard } from "@/components/shared/stat-card";
+import { SaleStatusBadge } from "@/components/sales/sale-status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -20,56 +25,25 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
-import { EmptyState } from "@/components/shared/empty-state";
-import { ErrorState } from "@/components/shared/error-state";
-import { PageHeader } from "@/components/shared/page-header";
-import { ApiError, apiRequest } from "@/lib/api/client";
+import type { DashboardSummary } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatMoney } from "@/lib/format";
+import { useApiItem } from "@/lib/hooks/use-api-item";
+import {
+  canAccess,
+  PURCHASE_WRITE_ROLES,
+  SALE_WRITE_ROLES,
+} from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
-interface DashboardSummary {
-  date: string;
-  todaySales: {
-    count: number;
-    subtotal: string;
-    taxTotal: string;
-    total: string;
-  };
-  alerts: {
-    lowStock: number;
-    nearExpiry: number;
-    expired: number;
-  };
-  recentSales: Array<{
-    id: number;
-    invoiceNo: string;
-    customerName: string | null;
-    total: string;
-    status: string;
-    createdAt: string;
-  }>;
-  recentMovements: Array<{
-    id: number;
-    type: string;
-    qtyDelta: number;
-    createdAt: string;
-    batch: {
-      id: number;
-      batchNo: string;
-      medicine: { id: number; name: string; sku: string };
-    };
-  }>;
-}
+type DashboardSale = DashboardSummary["recentSales"][number];
+type DashboardMovement = DashboardSummary["recentMovements"][number];
 
-const saleColumns: DataTableColumn<DashboardSummary["recentSales"][number]>[] = [
+const saleColumns: DataTableColumn<DashboardSale>[] = [
   {
     key: "invoice",
     header: "Invoice",
-    cell: (sale) => (
-      <span className="font-medium">{sale.invoiceNo}</span>
-    ),
+    cell: (sale) => <span className="font-medium">{sale.invoiceNo}</span>,
   },
   {
     key: "customer",
@@ -79,11 +53,7 @@ const saleColumns: DataTableColumn<DashboardSummary["recentSales"][number]>[] = 
   {
     key: "status",
     header: "Status",
-    cell: (sale) => (
-      <Badge variant="outline" className="capitalize">
-        {sale.status.replaceAll("_", " ").toLowerCase()}
-      </Badge>
-    ),
+    cell: (sale) => <SaleStatusBadge status={sale.status} />,
   },
   {
     key: "time",
@@ -126,253 +96,255 @@ function formatSummaryDate(value: string | undefined): string {
       });
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  tone = "default",
+function RecentSalesSection({ sales }: { sales: DashboardSale[] }) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-heading text-sm font-medium">Recent sales</h2>
+          <p className="text-xs text-muted-foreground">
+            Latest invoices written today
+          </p>
+        </div>
+        <Link
+          href="/sales"
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          View all
+        </Link>
+      </div>
+      <DataTable
+        columns={saleColumns}
+        rows={sales}
+        getRowKey={(sale) => sale.id}
+        caption="Recent sales"
+        emptyTitle="No sales yet today"
+        emptyDescription="Sales created at the counter will appear here."
+      />
+    </section>
+  );
+}
+
+function RecentMovementsSection({
+  movements,
 }: {
-  label: string;
-  value: string;
-  hint: string;
-  icon: typeof Wallet;
-  tone?: "default" | "warning" | "danger";
+  movements: DashboardMovement[];
 }) {
   return (
-    <Card size="sm">
-      <CardContent className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            {label}
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-heading text-sm font-medium">Stock movements</h2>
+          <p className="text-xs text-muted-foreground">
+            Latest entries in the immutable ledger
           </p>
-          <p className="font-heading text-2xl font-semibold tracking-tight tabular-nums">
-            {value}
-          </p>
-          <p className="text-[0.6875rem] text-muted-foreground">{hint}</p>
         </div>
-        <span
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-lg",
-            tone === "danger"
-              ? "bg-destructive/10 text-destructive"
-              : tone === "warning"
-                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                : "bg-primary/10 text-primary",
-          )}
+        <Link
+          href="/inventory"
+          className="text-xs font-medium text-primary hover:underline"
         >
-          <Icon className="size-4" aria-hidden="true" />
-        </span>
-      </CardContent>
-    </Card>
+          Open inventory
+        </Link>
+      </div>
+      <Card size="sm">
+        <CardHeader className="sr-only">
+          <CardTitle>Recent stock movements</CardTitle>
+          <CardDescription>The newest entries in the stock ledger</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {movements.length === 0 ? (
+            <EmptyState
+              title="No movements yet"
+              description="Opening stock and every later change will be listed here."
+            />
+          ) : (
+            <div className="divide-y">
+              {movements.map((movement) => (
+                <div
+                  key={movement.id}
+                  className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium">
+                      {movement.batch.medicine.name}
+                    </p>
+                    <p className="truncate text-[0.6875rem] text-muted-foreground">
+                      {movement.type.replaceAll("_", " ")} ·{" "}
+                      {movement.batch.batchNo}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 text-xs font-medium tabular-nums",
+                      movement.qtyDelta >= 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-destructive",
+                    )}
+                  >
+                    {movement.qtyDelta > 0 ? "+" : ""}
+                    {movement.qtyDelta}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
 export function DashboardView() {
   const { user } = useAuth();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-
-  const retry = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    setReloadKey((key) => key + 1);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    apiRequest<DashboardSummary>("/dashboard/summary")
-      .then((data) => {
-        if (active) {
-          setSummary(data);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (active) {
-          setError(
-            cause instanceof ApiError
-              ? cause.message
-              : "The dashboard could not be loaded.",
-          );
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [reloadKey]);
-
+  const summary = useApiItem<DashboardSummary>("/dashboard/summary");
+  const data = summary.data;
   const firstName = user?.name.split(/\s+/)[0] ?? "there";
+  const isInventoryManager = user?.role === "INVENTORY_MANAGER";
+  const canSell = canAccess(user?.role, SALE_WRITE_ROLES);
+  const canReceive = canAccess(user?.role, PURCHASE_WRITE_ROLES);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={`Hello, ${firstName}`}
-        description={`${formatSummaryDate(summary?.date)} · The current state of the pharmacy.`}
+        description={`${formatSummaryDate(data?.date)} · ${
+          isInventoryManager
+            ? "Stock health first, with the newest ledger entries."
+            : "Today's sales and stock health at a glance."
+        }`}
         actions={
           <>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={retry}
-              disabled={loading}
+              onClick={summary.reload}
+              disabled={summary.isLoading}
             >
               <RefreshCw
-                className={cn("size-3.5", loading && "animate-spin")}
+                className={cn("size-3.5", summary.isLoading && "animate-spin")}
                 aria-hidden="true"
               />
               Refresh
             </Button>
             <Link
               href="/alerts"
-              className={buttonVariants({ variant: "default", size: "sm" })}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
             >
-              View alerts
-              <ArrowRight className="size-3.5" aria-hidden="true" />
+              <TriangleAlert className="size-3.5" aria-hidden="true" />
+              Alerts
             </Link>
+            {canSell ? (
+              <Link
+                href="/sales/new"
+                className={buttonVariants({ variant: "default", size: "sm" })}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                New sale
+              </Link>
+            ) : canReceive ? (
+              <Link
+                href="/purchases/new"
+                className={buttonVariants({ variant: "default", size: "sm" })}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Receive stock
+              </Link>
+            ) : null}
           </>
         }
       />
 
-      {loading ? (
-        <DashboardSkeleton />
-      ) : error ? (
+      {summary.isLoading ? (
+        <DashboardSkeleton inventoryManager={isInventoryManager} />
+      ) : summary.error ? (
         <Card>
-          <ErrorState message={error} onRetry={retry} />
+          <ErrorState message={summary.error} onRetry={summary.reload} />
         </Card>
-      ) : summary ? (
+      ) : data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Revenue today"
-              value={formatMoney(summary.todaySales.total)}
-              hint={`${summary.todaySales.count} sale${summary.todaySales.count === 1 ? "" : "s"} today`}
-              icon={Wallet}
-            />
-            <StatCard
-              label="Low stock"
-              value={String(summary.alerts.lowStock)}
-              hint="Medicines below their reorder level"
-              icon={Package}
-              tone={summary.alerts.lowStock > 0 ? "warning" : "default"}
-            />
-            <StatCard
-              label="Near expiry"
-              value={String(summary.alerts.nearExpiry)}
-              hint="Batches inside the alert window"
-              icon={Clock}
-              tone={summary.alerts.nearExpiry > 0 ? "warning" : "default"}
-            />
-            <StatCard
-              label="Expired"
-              value={String(summary.alerts.expired)}
-              hint="Batches blocked from sale"
-              icon={TriangleAlert}
-              tone={summary.alerts.expired > 0 ? "danger" : "default"}
-            />
+          {isInventoryManager ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatCard
+                label="Low stock"
+                value={String(data.alerts.lowStock)}
+                hint="Medicines below their reorder level"
+                icon={Package}
+                tone={data.alerts.lowStock > 0 ? "warning" : "default"}
+              />
+              <StatCard
+                label="Near expiry"
+                value={String(data.alerts.nearExpiry)}
+                hint="Batches inside the alert window"
+                icon={Clock}
+                tone={data.alerts.nearExpiry > 0 ? "warning" : "default"}
+              />
+              <StatCard
+                label="Expired"
+                value={String(data.alerts.expired)}
+                hint="Batches blocked from sale"
+                icon={TriangleAlert}
+                tone={data.alerts.expired > 0 ? "danger" : "default"}
+              />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label="Revenue today"
+                value={formatMoney(data.todaySales.total)}
+                hint={`${data.todaySales.count} sale${
+                  data.todaySales.count === 1 ? "" : "s"
+                } today`}
+                icon={Wallet}
+              />
+              <StatCard
+                label="Low stock"
+                value={String(data.alerts.lowStock)}
+                hint="Medicines below their reorder level"
+                icon={Package}
+                tone={data.alerts.lowStock > 0 ? "warning" : "default"}
+              />
+              <StatCard
+                label="Near expiry"
+                value={String(data.alerts.nearExpiry)}
+                hint="Batches inside the alert window"
+                icon={Clock}
+                tone={data.alerts.nearExpiry > 0 ? "warning" : "default"}
+              />
+              <StatCard
+                label="Expired"
+                value={String(data.alerts.expired)}
+                hint="Batches blocked from sale"
+                icon={TriangleAlert}
+                tone={data.alerts.expired > 0 ? "danger" : "default"}
+              />
+            </div>
+          )}
+
+          <div
+            className={cn(
+              "grid gap-6",
+              !isInventoryManager && "xl:grid-cols-2",
+            )}
+          >
+            {isInventoryManager ? (
+              <RecentMovementsSection movements={data.recentMovements} />
+            ) : (
+              <>
+                <RecentSalesSection sales={data.recentSales} />
+                <RecentMovementsSection movements={data.recentMovements} />
+              </>
+            )}
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-heading text-sm font-medium">
-                    Recent sales
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Latest invoices written today
-                  </p>
-                </div>
-                <Link
-                  href="/sales"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View all
-                </Link>
-              </div>
-              <DataTable
-                columns={saleColumns}
-                rows={summary.recentSales}
-                getRowKey={(sale) => sale.id}
-                caption="Recent sales"
-                emptyTitle="No sales yet today"
-                emptyDescription="Sales created at the counter will appear here."
-              />
-            </section>
-
-            <section className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-heading text-sm font-medium">
-                    Stock movements
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Latest entries in the immutable ledger
-                  </p>
-                </div>
-                <Link
-                  href="/inventory"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Open inventory
-                </Link>
-              </div>
-              <Card size="sm">
-                <CardHeader className="sr-only">
-                  <CardTitle>Recent stock movements</CardTitle>
-                  <CardDescription>
-                    The newest entries in the stock ledger
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {summary.recentMovements.length === 0 ? (
-                    <EmptyState
-                      title="No movements yet"
-                      description="Opening stock and every later change will be listed here."
-                    />
-                  ) : (
-                    <div className="divide-y">
-                      {summary.recentMovements.map((movement) => (
-                        <div
-                          key={movement.id}
-                          className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-medium">
-                              {movement.batch.medicine.name}
-                            </p>
-                            <p className="truncate text-[0.6875rem] text-muted-foreground">
-                              {movement.type.replaceAll("_", " ")} ·{" "}
-                              {movement.batch.batchNo}
-                            </p>
-                          </div>
-                          <span
-                            className={cn(
-                              "shrink-0 text-xs font-medium tabular-nums",
-                              movement.qtyDelta >= 0
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : "text-destructive",
-                            )}
-                          >
-                            {movement.qtyDelta > 0 ? "+" : ""}
-                            {movement.qtyDelta}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
+          <div className="flex justify-end">
+            <Link
+              href="/reports"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              Open reports
+              <ArrowRight className="size-3" aria-hidden="true" />
+            </Link>
           </div>
         </>
       ) : null}
@@ -380,11 +352,20 @@ export function DashboardView() {
   );
 }
 
-function DashboardSkeleton() {
+function DashboardSkeleton({
+  inventoryManager,
+}: {
+  inventoryManager: boolean;
+}) {
   return (
     <div className="space-y-6" aria-hidden="true">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
+      <div
+        className={cn(
+          "grid gap-3 sm:grid-cols-2",
+          inventoryManager ? "xl:grid-cols-3" : "xl:grid-cols-4",
+        )}
+      >
+        {Array.from({ length: inventoryManager ? 3 : 4 }).map((_, index) => (
           <Card key={index} size="sm">
             <CardContent className="space-y-2">
               <Skeleton className="h-3 w-24" />
@@ -394,8 +375,10 @@ function DashboardSkeleton() {
           </Card>
         ))}
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Skeleton className="h-64 w-full rounded-lg" />
+      <div className={cn("grid gap-6", !inventoryManager && "xl:grid-cols-2")}>
+        {!inventoryManager ? (
+          <Skeleton className="h-64 w-full rounded-lg" />
+        ) : null}
         <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     </div>

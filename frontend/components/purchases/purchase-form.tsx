@@ -101,6 +101,19 @@ export function PurchaseForm({
   );
 
   const unavailable = suppliers.length === 0 || medicines.length === 0;
+  const isDirty =
+    supplierId !== "" ||
+    supplierInvoiceNo.trim() !== "" ||
+    purchaseDate !== "" ||
+    lines.some(
+      (line) =>
+        line.medicineId !== "" ||
+        line.batchNo !== "" ||
+        line.quantity !== "" ||
+        line.costPrice !== "" ||
+        line.salePrice !== "" ||
+        line.expiryDate !== "",
+    );
 
   const clearFieldError = (key: string) => {
     setFieldErrors((previous) => {
@@ -673,7 +686,20 @@ export function PurchaseForm({
           · the API recalculates the actual total
         </p>
         <div className="flex flex-wrap gap-2">
-          <Link href="/purchases" className={buttonVariants({ variant: "outline" })}>
+          <Link
+            href="/purchases"
+            onClick={(event) => {
+              if (
+                isDirty &&
+                !window.confirm(
+                  "Discard this purchase? The invoice details and item lines will be lost.",
+                )
+              ) {
+                event.preventDefault();
+              }
+            }}
+            className={buttonVariants({ variant: "outline" })}
+          >
             Cancel
           </Link>
           <Button type="submit" disabled={pending || unavailable}>
