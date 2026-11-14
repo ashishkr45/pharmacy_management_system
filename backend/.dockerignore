@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-seed
+src/generated
+coverage
+tests
+scripts
+docs
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.md
+*.log
+npm-debug.log*
