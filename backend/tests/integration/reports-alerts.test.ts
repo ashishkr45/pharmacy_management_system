@@ -327,7 +327,7 @@ describe('alerts, dashboard, reports and settings', () => {
     }
   });
 
-  it('reconciles opening, purchase, sale, return and adjustment with zero mismatch (A3)', async () => {
+  it('reconciles opening, purchase, sale, return and adjustment with zero mismatch (A5)', async () => {
     await receiveStock();
 
     const adjustment = await api()
@@ -466,7 +466,7 @@ describe('alerts, dashboard, reports and settings', () => {
     expect(Number(group?.costValueAtRisk)).toBe(90);
   });
 
-  it('enforces report and admin RBAC and rejects invalid ranges (A5)', async () => {
+  it('enforces report and admin RBAC and rejects invalid ranges', async () => {
     const salesUrl = `/api/v1/reports/sales?from=${FROM}&to=${TO}`;
     const valuationUrl = '/api/v1/reports/stock-valuation';
     const expiryUrl = '/api/v1/reports/expiry';
