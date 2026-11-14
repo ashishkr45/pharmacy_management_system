@@ -1,2 +1,32 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Prisma generated client (custom generator output)
+backend/generated/
+backend/src/generated/
+
+# Environment files — never commit real values, only examples
 .env
+.env.*
+!.env.example
+!.env.test.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test output
+coverage/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

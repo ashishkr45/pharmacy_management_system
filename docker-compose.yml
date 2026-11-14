@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:18.2-alpine
+    environment:
+      POSTGRES_USER: pharmacy
+      POSTGRES_PASSWORD: pharmacy_demo_password
+      POSTGRES_DB: pharmacy
+    volumes:
+      - pharmacy_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharmacy -d pharmacy"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      FRONTEND_URL: http://localhost:3000
+      DATABASE_URL: postgresql://pharmacy:pharmacy_demo_password@db:5432/pharmacy?schema=public
+      DIRECT_URL: postgresql://pharmacy:pharmacy_demo_password@db:5432/pharmacy?schema=public
+      # Demo-only signing secret; change it for any non-local use.
+      JWT_SECRET: demo-only-change-me-please-1234567890
+      JWT_EXPIRES_IN: 8h
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    # Inline commands avoid a host entrypoint script and its Windows CRLF risk.
+    # The wrapper seeds only when the users table is empty, so a restart with
+    # the named volume intact does not wipe reviewer data.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        ./node_modules/.bin/prisma migrate deploy
+        node dist-seed/prisma/seed-if-empty.js
+        exec node dist/server.js
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    init: true
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # The browser runs on the host; use localhost, not the `backend` service.
+        NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    init: true
+    restart: unless-stopped
+
+volumes:
+  pharmacy_db_data:
