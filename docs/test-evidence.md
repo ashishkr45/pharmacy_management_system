@@ -1,8 +1,10 @@
 # Test evidence
 
-Captured on **Saturday 14 November 2026** for the final submission. The backend
-test suite runs with Vitest + Supertest against a **separate Neon test database**
-(`backend/.env.test`), never the demo database.
+Captured on **Saturday 14 November 2026** for the final submission; the Docker
+reviewer path and the post-rename regression were verified on **Sunday 15
+November 2026** (sections 1 and 7). The backend test suite runs with Vitest +
+Supertest against a **separate Neon test database** (`backend/.env.test`), never
+the demo database.
 
 ## 1. Full backend regression
 
@@ -13,7 +15,9 @@ cd backend
 npm test
 ```
 
-Result: **8 test files, 58 tests passed, 0 failed** (all suites green; final post-docs duration **500.9 s** on the slow Neon test branch; first full run took 557.4 s).
+Result: **8 test files, 58 tests passed, 0 failed** (all suites green; latest
+post-seed-rename run **688.8 s** on the slow Neon test branch; earlier runs took
+500.9 s and 557.4 s).
 
 > Two test descriptions in `reports-alerts.test.ts` were later aligned with PRD
 > §9 (`A5` = reconciliation; the RBAC case is not an acceptance criterion).
@@ -34,6 +38,10 @@ Result: **8 test files, 58 tests passed, 0 failed** (all suites green; final pos
 > Neon cold starts can make the first test file slow. The suite uses longer
 > Prisma transaction limits (10 s wait / 20 s timeout) for this reason; the local
 > run completed without retries.
+>
+> The current seed uses `106 Gyūnyū` / `106-MILK` with batches `MILK-2601` and
+> `MILK-2602`. The 15 Nov regression above was rerun after that rename; earlier
+> checkpoint values that mention Fevra-500/FEV-2601 are retained as history.
 
 ## 2. Acceptance criteria map (PRD §9)
 
@@ -127,7 +135,56 @@ typecheck; the final build was rerun before submission.
   (missing `operationId`, tag descriptions, localhost server and license metadata),
   no structural errors.
 
-## 7. Manual visual walkthrough
+## 7. Docker reviewer-path verification (15 Nov 2026)
+
+Host: **Docker Desktop 28.3.2**, Linux engine. This is a local demo path, not a
+replacement for the automated Vitest suite; the suite still runs on the separate
+Neon test branch.
+
+Commands:
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose down -v
+docker compose up -d --no-build
+```
+
+Results:
+
+- **Cold first build:** 899 s (one transient npm `ECONNRESET` required a retry;
+  BuildKit cache resumed).
+- **Fresh working copy**, no `.env` and no `node_modules`: `docker compose up -d --build`
+  passed in **113.7 s** with a warm BuildKit cache; backend and frontend reached
+  `healthy`; all migrations applied.
+- **Clean volume seed:** 3 users, 7 categories, 5 suppliers, 15 medicines,
+  18 batches, 18 `OPENING` movements, settings `defaultTaxRate=5` /
+  `nearExpiryDays=60`.
+- **Seed contents check (15 Nov):** `GET /api/v1/medicines?search=106` returned
+  exactly one row, `106 Gyūnyū` / `106-MILK`; `GET /api/v1/batches?search=MILK-2601`
+  returned 40 units at purchase/sale `180.00` / `245.00`; the ledger invariant
+  query returned **0 mismatches**.
+- **Logins/CORS:** all three demo accounts returned their expected roles;
+  preflight from `Origin: http://localhost:3000` returned **204** with
+  `Access-Control-Allow-Origin: http://localhost:3000`.
+- **Journey:** purchase `FRESH-DEMO-001` (Painex, batch `PNG-FRESH-01`, qty 10);
+  sale `INV-2026-000001` for **₹4,928** split across two FEFO batches; invoice
+  returned the same total; 2-unit return produced `PARTIALLY_RETURNED`;
+  reconciliation **19 batches / 0 mismatches / checksCurrent true**; ledger
+  invariant query returned **0** violations.
+- **Restart:** `docker compose restart backend` printed
+  `Seed skipped: 3 user(s) already exist.` and kept 3 users / 15 medicines /
+  18 batches.
+- **Non-root:** `docker compose exec backend id` and `... frontend id` both report
+  `uid=1000(node)`.
+- **Cached source-change rebuild:** **40.7 s** for both images; after adding source-map deletion to the build stages, a rebuild took **31.9 s** and `find /app -name '*.map'` returned nothing in either runtime container.
+- **Host builds:** frontend `npm run build` **163.5 s** without
+  `NEXT_OUTPUT` (no `.next/standalone`), backend `npm run build` **96.7 s**.
+- **Image sizes** (targets in parentheses): backend **817 MB** (300–400 MB),
+  frontend **258 MB** (≤250 MB), `postgres:18.2-alpine` **409 MB** (~250 MB).
+  The misses are documented in the README and `PROGRESS.md`.
+
+## 8. Manual visual walkthrough
 
 The candidate walked the app with all three demo accounts:
 
