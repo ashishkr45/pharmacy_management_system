@@ -1,6 +1,6 @@
 # PRD: Pharmacy Management System
 
-**Context:** Algions AI Labs Pvt Ltd, Full-Stack Web Development internship assessment. Individual project; window 8–14 Nov 2026 (7 days, deadline Sat 14 Nov end of day).
+**Context:** Full-Stack Web Development internship assessment. Individual project; window 8–14 Nov 2026 (7 days, deadline Sat 14 Nov end of day).
 **Evaluation (100):** business-rule correctness 30 · architecture/data model/APIs 20 · security/authz/integrity 15 · testing/reliability 15 · UI/UX/responsive 10 · documentation/demo 10.
 **Principle:** a strong, correct MVP beats many incomplete screens. Unfinished items must be stated honestly (README "Known limitations").
 
@@ -187,6 +187,7 @@ All list endpoints: pagination + relevant search/filters. All responses use the 
 - **Integrity:** transactions, row locks, unique + CHECK constraints, idempotency, append-only ledger.
 - **Reliability:** consistent error codes; graceful handling of DB errors; `/health` endpoint.
 - **UX/accessibility:** responsive down to phone width; labelled inputs, keyboard navigation, focus states, sufficient contrast; loading/empty/success/error states on every data view; confirmation on destructive/irreversible actions.
+- **Theme:** full **light and dark mode** support on every screen and reusable component, including all screens added later. Default to the operating system preference, allow explicit Light / Dark / System selection, and persist the choice. Use semantic theme tokens rather than light-only fixed colors, and verify new UI in both themes at phone and desktop widths. Printed invoices must stay light/ink-friendly even when the app is dark.
 - **Performance:** indexes on filtered columns; paginated lists; no N+1 in report queries.
 - **Reproducibility:** repeatable migrations + seed; `.env.example`; documented one-sequence local setup (optionally Docker Compose).
 
@@ -205,7 +206,7 @@ Additional required tests: negative (oversell), conflict (duplicate Idempotency-
 ## 10. UI screens (frontend)
 
 Login · Dashboard · Medicines (list/create/edit) · Categories · Suppliers · Purchases (list/create/detail) · Inventory/Batches (filters: expired, near-expiry, low-stock) · New Sale (POS-style) · Sales list · Invoice (printable) · Returns (from sale detail) · Adjustments · Alerts · Reports (sales, valuation, expiry, reconciliation) · Audit log (admin) · Settings (admin).
-Navigation and visible actions adapt to role, but the server remains the authority.
+Navigation and visible actions adapt to role, but the server remains the authority. Every screen supports light and dark mode via the global theme control; new screens must not introduce light-only surfaces.
 
 ## 11. Testing strategy
 

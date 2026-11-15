@@ -32,9 +32,6 @@ services:
         condition: service_healthy
     ports:
       - "4000:4000"
-    # Inline commands avoid a host entrypoint script and its Windows CRLF risk.
-    # The wrapper seeds only when the users table is empty, so a restart with
-    # the named volume intact does not wipe reviewer data.
     command:
       - sh
       - -c

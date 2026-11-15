@@ -16,6 +16,72 @@ The seed creates three fictional accounts. All use the password **`Demo@1234`**.
 
 The login screen lists the accounts and fills the form when one is selected. No real customer or medical data is included.
 
+## Run with Docker (recommended for reviewers)
+
+Prerequisites: Docker Desktop (Linux containers) or Docker Engine with Compose v2. Node.js, PostgreSQL, a Neon account and a `.env` file are **not** required for this path.
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+The first build pulls the Node, PostgreSQL and Alpine images and compiles both apps. On the verification machine a cold first build took **899 s**; a fresh working copy with a warm BuildKit cache took **113.7 s**, and a later one-line source change rebuilt in **40.7 s**. The stack is ready when `docker compose ps` shows `db`, `backend` and `frontend` as `healthy` (the backend can take ~30–45 s on first start).
+
+| Service | URL |
+|---|---|
+| Web app | `http://localhost:3000/login` |
+| API health | `http://localhost:4000/api/v1/health` |
+| Swagger UI | `http://localhost:4000/docs` |
+
+Use the demo accounts above; all three passwords are `Demo@1234`.
+
+What Compose sets up:
+
+- `db`: PostgreSQL on the named `pharmacy_db_data` volume. Port 5432 is not published to the host.
+- `backend`: waits for `db`, runs `prisma migrate deploy`, then the Docker-only `seed-if-empty` guard (it seeds only when there are no users), then starts the API as the non-root `node` user (uid 1000).
+- `frontend`: built with `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1` as a **build arg**, waits for backend health, and runs the Next standalone server as `node`.
+- Compose supplies demo-only database credentials and `JWT_SECRET=demo-only-change-me-please-1234567890`; CORS allows `http://localhost:3000`. Do not reuse these credentials or this secret outside local Docker.
+- No `.env` is read. The browser uses `localhost:4000`, not the Compose service name `backend`.
+- Build stages delete source maps, and the runtime images exclude app `.env` files, tests, docs and `.git`.
+
+### Reset or stop
+
+```bash
+docker compose down       # stop; keep the demo data volume
+docker compose down -v    # stop and delete the volume; the next up starts a clean seed
+docker compose up --build # after a reset (or add -d to run in the background)
+```
+
+The seed guard matters: restarting with the volume intact prints `Seed skipped: 3 user(s) already exist.` and keeps reviewer-created purchases, sales and returns. `down -v` is the explicit clean reset.
+
+### Docker troubleshooting
+
+- **Port already in use:** stop local dev servers on 3000/4000, then rerun.
+- **`db` unhealthy:** inspect `docker compose logs db`; the first database initialization can take a few seconds.
+- **Stale or half-seeded data:** `docker compose down -v`, then `docker compose up --build`.
+- **Transient network failure while building:** rerun the same command; the BuildKit npm cache mounts resume the download.
+- **Check what is running:** `docker compose ps` and `docker compose logs -f backend`.
+- **Windows:** use Docker Desktop with Linux containers. Compose uses an inline `sh -c` command, so there is no entrypoint script with CRLF line endings.
+
+### Measured image sizes
+
+Measured with `docker images` on Docker Desktop (Linux engine, November 2026). The assessment targets were backend 300–400 MB, frontend ≤250 MB and database ~250 MB.
+
+| Service | Image | Measured | Target |
+|---|---|---:|---:|
+| Database | `postgres:18.2-alpine` | 409 MB | ~250 MB |
+| Backend | `pharmacy_management_systeml-backend` | 817 MB | 300–400 MB |
+| Frontend | `pharmacy_management_systeml-frontend` | 258 MB | ≤250 MB |
+
+The misses are documented trade-offs, not hidden: the backend keeps the Prisma CLI because it runs `prisma migrate deploy` at startup, and Prisma's CLI dependency tree (studio/dev) is large; the official PostgreSQL image is 409 MB; the minimal Alpine frontend runtime is 8 MB over target after copying only the pinned Node binary and the standalone app. Moving migrations to a separate one-shot image could shrink the backend at the cost of another moving part; that is not worth the risk for a local reviewer path.
+
+Docker is a local reviewer path only. The Render/Vercel/Neon deployment instructions below are unchanged. The frontend's normal (non-Docker) build remains the default: `NEXT_OUTPUT=standalone` is set only in `frontend/Dockerfile`, and a host/Vercel build without it was verified.
+
+### Docker and tests
+
+Docker starts the demo database; it does not run the backend Vitest suite. Run tests on the host with the separate test database described in [Tests](#tests), never against the Compose volume.
+
 ## Features
 
 - **Batch inventory** with unique `(medicine, batch number)`, expiry dates and a non-negative quantity check.
@@ -69,6 +135,8 @@ Routes do not call Prisma directly. `app.ts` builds the Express app; `server.ts`
   - `DIRECT_URL` — non-pooled connection used by the Prisma CLI for migrations.
 
 ## Local setup
+
+> This manual path is for development and for running the test suite. For the reviewer demo, use the one-command Docker path above.
 
 ### 1. Backend
 
@@ -172,7 +240,7 @@ The repo is deployment-ready for the intended free-tier split:
 - **Frontend on Vercel** (root directory `frontend`): set `NEXT_PUBLIC_API_URL` to the deployed API URL **including `/api/v1`**, then deploy.
 - **Database on Neon:** run the migration and seed once, then keep the pooled URL for runtime and direct URL for migrations.
 
-No public deployment URL is committed in this snapshot. If hosting is unavailable, the local steps above are the complete demo path. See `PROGRESS.md` for the latest deployment status.
+No public deployment URL is committed in this snapshot. If hosting is unavailable, the local steps above are the complete demo path. The Docker Compose stack is a **local reviewer path only**; it is not a production deployment and its demo credentials must not be reused. See `PROGRESS.md` for the latest deployment status.
 
 ## Known limitations
 
@@ -188,6 +256,8 @@ These are deliberate scope decisions, not hidden gaps:
 - No PDF/email generation; the invoice is a print-friendly browser view.
 - No automated frontend browser tests; the F2–F6 journeys were checked with builds, route smoke requests, API contracts and a human walkthrough.
 - No chart library; reports use cards and tables.
+- **Docker image sizes exceed the aspirational targets** (backend 817 MB vs 300–400 MB, frontend 258 MB vs ≤250 MB, PostgreSQL 409 MB vs ~250 MB). The backend needs the Prisma CLI at startup for `prisma migrate deploy`; the other gaps are base-image costs. The Compose credentials and JWT secret are demo-only.
+- Docker Compose is a local reviewer convenience; the production deployment path remains Render + Vercel + Neon.
 
 A longer, continuously updated list is in [`PROGRESS.md`](./PROGRESS.md).
 
