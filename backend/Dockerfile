@@ -37,6 +37,8 @@ COPY package.json package-lock.json ./
 # `prisma` is a production dependency because the container runs
 # `prisma migrate deploy` at startup. Everything else is a runtime dependency.
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
+# Source maps are development artifacts and are not needed in the runtime image.
+RUN find node_modules -name '*.map' -delete
 
 FROM base AS runtime
 ENV NODE_ENV=production \

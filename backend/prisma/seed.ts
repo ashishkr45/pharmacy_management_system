@@ -75,11 +75,12 @@ export async function seedDatabase(): Promise<void> {
       { name: 'BlueLeaf Healthcare Supplies', contactPerson: 'Vikram Shah', phone: '+91 00000 10002', email: 'sales@blueleaf.example', address: '48 Trade Centre, Ahmedabad' },
       { name: 'Crescent Medical Agencies', contactPerson: 'Fatima Khan', phone: '+91 00000 10003', email: 'desk@crescent.example', address: '7 Market Road, Hyderabad' },
       { name: 'Northstar Wholesale Pharma', contactPerson: 'Daniel Fernandes', phone: '+91 00000 10004', email: 'hello@northstar.example', address: '90 Depot Lane, Goa' },
+      { name: 'Tsunade Senju', contactPerson: 'Shizune', phone: '+91 80001 10006', email: 'tsunade@hidden.leaf', address: 'Hokage Residence, Konohagakure' },
     ].map((data) => prisma.supplier.create({ data })),
   );
 
   const medicines = [
-    { name: 'Fevra-500', genericName: 'Paracetamol', sku: 'MED-001', category: 'Analgesics', unit: 'strip', reorderLevel: 50, taxRate: '5.00', defaultSalePrice: '25.00' },
+    { name: '106 Gyūnyū', genericName: '106', sku: '106-MILK', category: 'Vitamins', unit: 'bottle', reorderLevel: 20, taxRate: '20.00', defaultSalePrice: '245.00' },
     { name: 'Painex Gel', genericName: 'Diclofenac', sku: 'MED-002', category: 'Analgesics', unit: 'tube', reorderLevel: 20, taxRate: '12.00', defaultSalePrice: '145.00' },
     { name: 'Amoxivan-250', genericName: 'Amoxicillin', sku: 'MED-003', category: 'Antibiotics', unit: 'strip', reorderLevel: 40, taxRate: '12.00', defaultSalePrice: '85.00' },
     { name: 'Azithrovin-500', genericName: 'Azithromycin', sku: 'MED-004', category: 'Antibiotics', unit: 'strip', reorderLevel: 30, taxRate: '12.00', defaultSalePrice: '120.00' },
