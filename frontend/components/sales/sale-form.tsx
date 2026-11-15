@@ -33,7 +33,9 @@ import { PAYMENT_METHOD_LABELS } from "@/lib/sales";
 
 const PHONE_PATTERN = /^[0-9+()\- ]{5,20}$/;
 const QUANTITY_PATTERN = /^\d+$/;
-const DEFAULT_SEARCH_PAGE_SIZE = 8;
+// The API caps pageSize at 100. Load the whole active catalogue so the
+// cashier can browse every sellable medicine (and search for the rest).
+const MEDICINE_RESULTS_PAGE_SIZE = 100;
 
 interface CartLine {
   key: string;
@@ -95,7 +97,7 @@ export function SaleForm() {
   const search = useDebouncedValue(searchInput.trim(), 300);
   const searchPath = `/medicines${buildQuery({
     isActive: "true",
-    pageSize: DEFAULT_SEARCH_PAGE_SIZE,
+    pageSize: MEDICINE_RESULTS_PAGE_SIZE,
     search: search || undefined,
   })}`;
   const medicineResults = useApiList<Medicine>(searchPath);
@@ -134,7 +136,9 @@ export function SaleForm() {
     setFieldErrors((previous) => clearItemErrors(previous));
     setFormError(null);
     setSearchInput("");
-    searchInputRef.current?.focus();
+    // Keep the cashier's scroll position; normal focus() scrolls the search
+    // box back into view after each add.
+    searchInputRef.current?.focus({ preventScroll: true });
   };
 
   const removeLine = (key: string) => {
@@ -283,13 +287,6 @@ export function SaleForm() {
       aria-busy={pending}
     >
       <div className="min-w-0 space-y-6">
-        {formError ? (
-          <Alert variant="destructive">
-            <AlertTitle>Sale could not be completed</AlertTitle>
-            <AlertDescription>{formError}</AlertDescription>
-          </Alert>
-        ) : null}
-
         <section className="space-y-4 rounded-lg border bg-card p-4">
           <div>
             <h2 className="font-heading text-sm font-medium">
@@ -328,8 +325,11 @@ export function SaleForm() {
                 className="text-[0.6875rem] text-muted-foreground"
                 aria-live="polite"
               >
-                {medicineResults.data.meta.total} match
-                {medicineResults.data.meta.total === 1 ? "" : "es"}
+                {medicineResults.data.meta.total > medicines.length
+                  ? `Showing ${medicines.length} of ${medicineResults.data.meta.total} matches — search to narrow the list`
+                  : `${medicineResults.data.meta.total} match${
+                      medicineResults.data.meta.total === 1 ? "" : "es"
+                    }`}
               </p>
             ) : null}
           </div>
@@ -513,6 +513,13 @@ export function SaleForm() {
             </div>
           )}
         </section>
+
+        {formError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Sale could not be completed</AlertTitle>
+            <AlertDescription>{formError}</AlertDescription>
+          </Alert>
+        ) : null}
       </div>
 
       <aside className="h-fit space-y-5 rounded-lg border bg-card p-4 lg:sticky lg:top-20">

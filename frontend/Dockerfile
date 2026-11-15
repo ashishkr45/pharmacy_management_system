@@ -12,6 +12,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
+# Keep source maps out of the standalone output copied to the runtime image.
+RUN find .next -name '*.map' -delete
 
 # The official Node image also contains npm, npx, yarn and corepack. The
 # standalone server needs none of them, so the final stage uses a minimal
