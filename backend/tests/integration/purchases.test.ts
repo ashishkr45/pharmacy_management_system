@@ -87,7 +87,7 @@ describe('purchases', () => {
     supplierId = (suppliers.body as ListBody<{ id: number }>).data[0]?.id ?? 0;
 
     const medicines = await api()
-      .get('/api/v1/medicines?search=Fevra')
+      .get('/api/v1/medicines?search=106')
       .set('Authorization', bearer(adminToken));
     medicineId = (medicines.body as ListBody<{ id: number }>).data[0]?.id ?? 0;
 

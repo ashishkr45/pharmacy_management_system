@@ -266,12 +266,12 @@ describe('alerts, dashboard, reports and settings', () => {
       .set('Authorization', bearer(pharmacistToken));
     expect(nearExpiry.status).toBe(200);
     const near = listOf<ExpiryAlertItem>(nearExpiry);
-    const fevra = near.data.find((item) => item.batchNo === 'FEV-2601');
-    expect(fevra).toMatchObject({
+    const milkBatch = near.data.find((item) => item.batchNo === 'MILK-2601');
+    expect(milkBatch).toMatchObject({
       quantityOnHand: 40,
       daysUntilExpiry: 20,
       expired: false,
-      medicine: { sku: 'MED-001' },
+      medicine: { sku: '106-MILK' },
     });
     expect(near.data.every((item) => item.daysUntilExpiry > 0)).toBe(true);
     expect(near.meta.nearExpiryDays).toBe(60);

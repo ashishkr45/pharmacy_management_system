@@ -77,13 +77,16 @@ describe('catalogue', () => {
   it('filters medicines and rejects an oversized page', async () => {
     // 1. search hits exactly the seeded medicine
     const searched = await api()
-      .get('/api/v1/medicines?search=fevra')
+      .get('/api/v1/medicines?search=106')
       .set('Authorization', bearer(adminToken));
 
     expect(searched.status).toBe(200);
     const searchedBody = searched.body as ListBody<MedicineDto>;
     expect(searchedBody.meta.total).toBe(1);
-    expect(searchedBody.data[0]?.name).toBe('Fevra-500');
+    expect(searchedBody.data[0]).toMatchObject({
+      name: '106 Gyūnyū',
+      sku: '106-MILK',
+    });
 
     // 2. the fresh seed has no inactive medicine
     const inactive = await api()

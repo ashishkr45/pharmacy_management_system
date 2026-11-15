@@ -8,7 +8,7 @@
  * so the ledger invariant (SUM(qty_delta) = quantity_on_hand) holds from the
  * very first row. Batches deliberately cover the three alert cases:
  *   - expired with stock   -> Cetzine-10 (only stock, so it cannot be sold)
- *   - near-expiry (<= 60d) -> Fevra-500 (+20d), Glycibal-2 (+60d), Cofrelief (+45d)
+ *   - near-expiry (<= 60d) -> 106 Gyūnyū (+20d), Glycibal-2 (+60d), Cofrelief (+45d)
  *   - low stock            -> D3 Rise (8/20), Glycibal-2 (10/25), Digestaid (10/15)
  */
 import bcrypt from 'bcrypt';
@@ -116,8 +116,8 @@ export async function seedDatabase(): Promise<void> {
 
   const batches = [
     // sku, batchNo, quantity, purchasePrice, salePrice, expiryDays, supplier index
-    ['MED-001', 'FEV-2601', 40, '16.50', '25.00', 20, 0],
-    ['MED-001', 'FEV-2602', 100, '16.50', '25.00', 400, 1],
+    ['106-MILK', 'MILK-2601', 40, '180.00', '245.00', 20, 0],
+    ['106-MILK', 'MILK-2602', 100, '180.00', '245.00', 400, 1],
     ['MED-002', 'PNG-2601', 25, '98.00', '145.00', 540, 2],
     ['MED-003', 'AMX-2601', 60, '58.00', '85.00', 180, 0],
     ['MED-003', 'AMX-2602', 40, '58.00', '85.00', 300, 3],
