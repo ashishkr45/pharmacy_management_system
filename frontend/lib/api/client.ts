@@ -10,7 +10,7 @@ import type {
  * `http://localhost:4000/api/v1`.
  */
 const API_URL = (
-  process.env.API_URL ?? "http://localhost:4000/api/v1"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1"
 ).replace(/\/+$/, "");
 
 export type ClientErrorCode = ApiErrorCode | "NETWORK_ERROR";
